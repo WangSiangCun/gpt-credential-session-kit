@@ -269,39 +269,61 @@ def login_via_account_pool(payload, emit, factory=None):
     from config import Config
 
     flow_factory = factory or AuthFlow
+
+    def new_flow():
+        try:
+            current = flow_factory(
+                Config(proxy=payload['proxy'] or None),
+                env_overrides={
+                    'WEBUI_ALLOW_LOGIN': '1',
+                    'OAUTH_CODEX_RT_ALLOW_RETRY': '1',
+                },
+            )
+        except TypeError as exc:
+            # Keep the worker test seam and older external factories compatible.
+            if factory is None or 'env_overrides' not in str(exc):
+                raise
+            current = flow_factory(Config(proxy=payload['proxy'] or None))
+        current._http_trace_enabled = False
+        current._trace_dump_enabled = False
+        current._trace_include_cookie = False
+        current.result.email = payload['email']
+        current.result.password = payload['password']
+        current.result.totp_secret = payload['totp_secret']
+        current._expected_login_email = payload['email']
+        current._is_existing_account = True
+        return current
+
+    flow = new_flow()
     try:
-        flow = flow_factory(
-            Config(proxy=payload['proxy'] or None),
-            env_overrides={
-                'WEBUI_ALLOW_LOGIN': '1',
-                'OAUTH_CODEX_RT_ALLOW_RETRY': '1',
-            },
-        )
-    except TypeError as exc:
-        # Keep the worker test seam and older external factories compatible.
-        if factory is None or 'env_overrides' not in str(exc):
-            raise
-        flow = flow_factory(Config(proxy=payload['proxy'] or None))
-    flow._http_trace_enabled = False
-    flow._trace_dump_enabled = False
-    flow._trace_include_cookie = False
-    flow.result.email = payload['email']
-    flow.result.password = payload['password']
-    flow.result.totp_secret = payload['totp_secret']
-    flow._expected_login_email = payload['email']
-    flow._is_existing_account = True
-    try:
-        emit('protocol')
-        result = through_selected_proxy(
-            flow,
-            payload['proxy'],
-            flow.run_protocol_login,
-            _NoEmailOtp(),
-            payload['email'],
-            payload['password'],
-            require_session=True,
-            existing_only=True,
-        )
+        result = None
+        for attempt in range(2):
+            emit('protocol' if attempt == 0 else 'state_reset')
+            try:
+                result = through_selected_proxy(
+                    flow,
+                    payload['proxy'],
+                    flow.run_protocol_login,
+                    _NoEmailOtp(),
+                    payload['email'],
+                    payload['password'],
+                    require_session=True,
+                    existing_only=True,
+                )
+                break
+            except Exception as exc:
+                if attempt == 0 and is_invalid_state(exc):
+                    # A 409/invalid_state belongs to the old OAuth cookie
+                    # state. Rebuild the complete session while pinning the
+                    # same selected proxy; never rotate behind the account.
+                    try:
+                        flow.session.close()
+                    finally:
+                        flow = new_flow()
+                    continue
+                raise
+        if result is None:
+            raise LoginFailure('invalid_state')
         values = {
             'access_token': str(getattr(result, 'access_token', '') or '').strip(),
             'session_token': str(getattr(result, 'session_token', '') or '').strip(),
