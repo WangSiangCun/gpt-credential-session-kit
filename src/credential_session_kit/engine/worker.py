@@ -597,6 +597,9 @@ def error_code(exc):
         return 'csrf_failed'
     if 'auth url' in lowered:
         return 'auth_url_failed'
+    for dependency_code in ('sentinel_asset_missing', 'sentinel_node_missing'):
+        if dependency_code in lowered:
+            return dependency_code
     if 'sentinel' in lowered or 'proof of work' in lowered:
         return 'sentinel_failed'
     if 'authorize/continue' in lowered:

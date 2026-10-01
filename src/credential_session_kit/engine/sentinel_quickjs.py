@@ -32,6 +32,7 @@ import json
 import logging
 import os
 import subprocess
+import shutil
 import tempfile
 import uuid
 from pathlib import Path
@@ -193,8 +194,9 @@ def get_sentinel_token_via_quickjs(
     log = log or (lambda m: logger.info(m))
     quickjs_script = _quickjs_script_path()
     if not quickjs_script.exists():
-        log(f"Sentinel QuickJS 脚本不存在: {quickjs_script}")
-        return None
+        raise RuntimeError("sentinel_asset_missing")
+    if not shutil.which(_resolve_node_binary()):
+        raise RuntimeError("sentinel_node_missing")
 
     did = str(device_id or uuid.uuid4())
 
