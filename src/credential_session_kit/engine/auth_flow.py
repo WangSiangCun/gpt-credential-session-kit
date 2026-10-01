@@ -3906,6 +3906,13 @@ class AuthFlow:
                         (continue_url or "")[:180] or "(empty)",
                     )
             except Exception as e:
+                # A rejected login request is a terminal diagnostic for this
+                # attempt. Falling through to signup probing after a 403
+                # changes the request sequence and hides the real stage that
+                # was rejected by the upstream edge.
+                status = getattr(getattr(e, "response", None), "status_code", None)
+                if status == 403 or "HTTP 403" in str(e):
+                    raise
                 logger.warning(f"login screen_hint 探测失败，回退 signup 探测: {e}")
                 continue_url = ""
                 page_type = ""

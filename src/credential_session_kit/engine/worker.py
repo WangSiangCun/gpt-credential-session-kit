@@ -591,6 +591,8 @@ def error_code(exc):
             return 'totp_http_403'
         if '密码登录' in text or 'password' in lowered:
             return 'password_http_403'
+        if 'authorize/continue' in lowered:
+            return 'account_lookup_http_403'
     if 'user was rejected by the socks5 server' in lowered or 'proxy authentication' in lowered:
         return 'proxy_auth'
     if 'csrf token' in lowered:
