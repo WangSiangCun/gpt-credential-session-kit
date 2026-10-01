@@ -46,3 +46,19 @@ def test_result_is_redacted_error_and_tokens_are_returned(tmp_path):
     assert actual.access_token == "a" * 24
     assert actual.session_token == "s" * 24
     assert actual.refresh_token == "r" * 24
+
+
+def test_preflight_uses_worker_protocol(tmp_path, monkeypatch):
+    project = tmp_path / "auth"
+    worker = project / "webui" / "team"
+    worker.mkdir(parents=True)
+    (worker / "mother_login_worker.py").write_text("", encoding="utf-8")
+    client = CredentialSessionClient(project, python="python")
+    class FakeProcess:
+        returncode = 0
+        def communicate(self, payload, timeout):
+            assert '"mode": "preflight"' in payload
+            assert '"proxy": "http://proxy.example:8080"' in payload
+            return '{"type":"preflight_result","ready":true}\n', ''
+    monkeypatch.setattr("credential_session_kit.client.subprocess.Popen", lambda *a, **k: FakeProcess())
+    assert client.preflight("http://proxy.example:8080") == {"ok": True}
