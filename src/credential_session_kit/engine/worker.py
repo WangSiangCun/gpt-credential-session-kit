@@ -292,6 +292,25 @@ def login_via_account_pool(payload, emit, factory=None):
         current.result.totp_secret = payload['totp_secret']
         current._expected_login_email = payload['email']
         current._is_existing_account = True
+        from functools import wraps
+        stages = {
+            "prepare_existing_login": "warmup", "get_csrf_token": "csrf",
+            "get_auth_url": "auth_url", "auth_oauth_init": "oauth_init",
+            "get_sentinel_token": "sentinel", "authorize_continue": "account_lookup",
+            "login_password_verify": "password", "submit_mfa_totp": "totp",
+            "follow_redirect_chain": "redirect", "get_auth_session": "session",
+            "oauth_codex_rt_exchange": "refresh",
+        }
+        def observe(method, stage):
+            @wraps(method)
+            def call(*args, **kwargs):
+                emit(stage)
+                return through_selected_proxy(current, payload["proxy"], method, *args, **kwargs)
+            return call
+        for name, stage in stages.items():
+            method = getattr(current, name, None)
+            if callable(method):
+                setattr(current, name, observe(method, stage))
         return current
 
     flow = new_flow()

@@ -1,4 +1,5 @@
 import json
+import io
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -39,8 +40,12 @@ def test_result_is_redacted_error_and_tokens_are_returned(tmp_path):
     }
     class Proc:
         returncode = 0
-        def communicate(self, *args, **kwargs):
-            return json.dumps(payload) + "\n" + json.dumps(result) + "\n", ""
+        stdin = io.StringIO()
+        stdout = io.StringIO(json.dumps(payload) + "\n" + json.dumps(result) + "\n")
+        def poll(self):
+            return 0
+        def wait(self, timeout=None):
+            return 0
     with patch("credential_session_kit.client.subprocess.Popen", return_value=Proc()):
         actual = client.login(email="owner@example.test", password="p", totp_secret="s", proxy_url="http://x")
     assert actual.access_token == "a" * 24

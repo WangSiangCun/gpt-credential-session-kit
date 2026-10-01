@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "credential-session-kit"
-version = "0.3.1"
+version = "0.3.2"
 description = "Existing-account access/session/refresh credential client"
 requires-python = ">=3.11"
 

@@ -4,10 +4,76 @@ import json
 import os
 import subprocess
 import sys
+import queue
+import threading
+import time
 from pathlib import Path
 
 from .errors import CredentialSessionError
 from .models import CredentialResult
+
+
+def _stream_worker(process, payload, timeout, on_stage):
+    """Deliver stages while the child runs; kill/reap it on any exit path."""
+    events = queue.Queue()
+    deadline = time.monotonic() + timeout
+    def reader():
+        try:
+            for line in iter(lambda: process.stdout.readline(262145), ""):
+                if len(line) > 262144:
+                    events.put(CredentialSessionError("auth_runner"))
+                    return
+                events.put(line)
+        except Exception:
+            events.put(CredentialSessionError("auth_runner"))
+        finally:
+            events.put(None)
+    thread = threading.Thread(target=reader, daemon=True)
+    thread.start()
+    result = error = None
+    try:
+        try:
+            process.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
+            process.stdin.flush()
+        except BrokenPipeError:
+            pass
+        finally:
+            process.stdin.close()
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise CredentialSessionError("auth_timeout")
+            try:
+                event = events.get(timeout=remaining)
+            except queue.Empty:
+                raise CredentialSessionError("auth_timeout") from None
+            if event is None:
+                break
+            if isinstance(event, Exception):
+                raise event
+            try:
+                event = json.loads(event)
+            except (ValueError, TypeError):
+                continue
+            if not isinstance(event, dict):
+                continue
+            if event.get("type") == "stage" and on_stage:
+                on_stage(str(event.get("stage") or "unknown"))
+            elif event.get("type") == "result":
+                result = event
+            elif event.get("type") == "error":
+                error = event
+        try:
+            process.wait(timeout=max(0.001, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            raise CredentialSessionError("auth_timeout") from None
+        return result, error
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+        thread.join(timeout=2)
+        process.stdout.close()
 
 
 class CredentialSessionClient:
@@ -104,32 +170,12 @@ class CredentialSessionClient:
                 stderr=subprocess.DEVNULL, text=True, encoding="utf-8",
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
-            stdout, _ = process.communicate(
-                json.dumps(values, ensure_ascii=False) + "\n", timeout=timeout
-            )
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.communicate()
-            raise CredentialSessionError("auth_timeout") from None
+            result, error = _stream_worker(process, values, timeout, on_stage)
         except OSError:
             raise CredentialSessionError("auth_runner") from None
         finally:
             values.clear()
 
-        result = None
-        error = None
-        for line in (stdout or "").splitlines():
-            try:
-                event = json.loads(line)
-            except (TypeError, ValueError):
-                continue
-            if event.get("type") == "stage":
-                if on_stage:
-                    on_stage(str(event.get("stage") or "unknown"))
-            elif event.get("type") == "result":
-                result = event
-            elif event.get("type") == "error":
-                error = event
         if error or process.returncode != 0 or not result:
             raise CredentialSessionError(str((error or {}).get("code") or "auth_failed"))
         credentials = result.get("credentials")
@@ -139,7 +185,10 @@ class CredentialSessionClient:
                   for key in ("access_token", "session_token", "refresh_token")}
         if not all(20 <= len(value) <= 65536 for value in fields.values()):
             raise CredentialSessionError("credentials_incomplete")
+        returned_email = str(result.get("email") or "").strip()
+        if returned_email.lower() != str(email).strip().lower():
+            raise CredentialSessionError("identity")
         return CredentialResult(
-            email=str(result.get("email") or "").strip(),
+            email=returned_email,
             **fields,
         )

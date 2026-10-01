@@ -3076,12 +3076,7 @@ class AuthFlow:
                     token_email = token_email or (payload.get("email", "") or "").strip().lower()
             except Exception:
                 pass
-        # Some successful NextAuth sessions expose the login-provider address
-        # while the web AT exposes the ChatGPT canonical address.  For a fresh
-        # password/TOTP flow, the login address is the useful correlation key:
-        # accept the pair when at least one identity source belongs to it, and
-        # reject only when both sources point elsewhere.  Callers that do not
-        # set an expected address retain the original strict source check.
+        # Every reported identity must agree with the requested account.
         expected_email = _identity_email_key(
             getattr(self, "_expected_login_email", ""))
         source_keys = {_identity_email_key(value) for value in
@@ -3090,9 +3085,8 @@ class AuthFlow:
                                and _identity_email_key(session_email)
                                != _identity_email_key(token_email))
         self._auth_identity_consistent = (
-            bool(expected_email and expected_email in source_keys)
-            if source_mismatch and expected_email
-            else not source_mismatch
+            bool(source_keys) and source_keys == {expected_email}
+            if expected_email else bool(source_keys) and not source_mismatch
         )
         self._auth_identity_diagnostic = {
             "session_present": bool(session_email),
@@ -3832,7 +3826,7 @@ class AuthFlow:
 
         page_type = ""
         mode = ""
-        prefer_login_screen_first = str(
+        prefer_login_screen_first = existing_only or str(
             os.getenv("LOCALAUTH_EXISTING_LOGIN_USE_LOGIN_HINT", "1")
         ).lower() in ("1", "true", "yes", "on")
 
@@ -3911,7 +3905,7 @@ class AuthFlow:
                 # changes the request sequence and hides the real stage that
                 # was rejected by the upstream edge.
                 status = getattr(getattr(e, "response", None), "status_code", None)
-                if status == 403 or "HTTP 403" in str(e):
+                if existing_only or status in (403, 409) or re.search(r"\b409\b|invalid[_ -]?state|HTTP 403", str(e), re.I):
                     raise
                 logger.warning(f"login screen_hint 探测失败，回退 signup 探测: {e}")
                 continue_url = ""
@@ -3919,6 +3913,8 @@ class AuthFlow:
                 mode = ""
 
         if not continue_url and page_type not in ("login_password", "email_otp_verification"):
+            if existing_only:
+                raise RuntimeError("已有账号登录未命中账号分支")
             is_new = self.signup(email, sentinel)
             if existing_only and is_new:
                 raise RuntimeError("已有账号登录未命中账号分支")
