@@ -15,7 +15,7 @@
 from credential_session_kit import CredentialSessionClient
 
 client = CredentialSessionClient(
-    auth_project=r"C:\\code\\go\\rental-all\\gpt-auto-register",
+    
 )
 result = client.login(
     email="ACCOUNT_EMAIL",

@@ -13,21 +13,10 @@ from .models import CredentialResult
 class CredentialSessionClient:
     """Small process-isolated facade over the account-pool protocol flow."""
 
-    def __init__(self, auth_project: str | os.PathLike[str], python: str | None = None):
-        self.auth_project = Path(auth_project).resolve()
-        self.python = python or self._find_python()
-        worker = self.auth_project / "webui" / "team" / "mother_login_worker.py"
-        if not worker.is_file():
-            raise CredentialSessionError("auth_runner")
-
-    def _find_python(self) -> str:
-        for path in (
-            self.auth_project / ".venv" / "Scripts" / "python.exe",
-            self.auth_project / ".venv" / "bin" / "python",
-        ):
-            if path.is_file():
-                return str(path)
-        return sys.executable
+    def __init__(self, *_ignored, python: str | None = None):
+        # The protocol worker ships inside this package.
+        self.python = python or sys.executable
+        self.worker_module = "credential_session_kit.engine.worker"
 
 
     def preflight(self, proxy_url: str, timeout: int = 180) -> dict:
@@ -42,12 +31,12 @@ class CredentialSessionClient:
         env.update(PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1",
                    AUTH_HTTP_TRACE="0", AUTH_TRACE_DUMP="0")
         env["PYTHONPATH"] = os.pathsep.join(
-            part for part in (str(self.auth_project), env.get("PYTHONPATH", "")) if part)
+            part for part in (str(Path(__file__).resolve().parent / "engine"), env.get("PYTHONPATH", "")) if part)
         process = None
         try:
             process = subprocess.Popen(
-                [self.python, "-m", "webui.team.mother_login_worker"],
-                cwd=str(self.auth_project), env=env, stdin=subprocess.PIPE,
+                [self.python, "-m", self.worker_module],
+                cwd=str(Path(__file__).resolve().parent / "engine"), env=env, stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 text=True, encoding="utf-8",
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
@@ -104,13 +93,13 @@ class CredentialSessionClient:
         env.update(PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1",
                    AUTH_HTTP_TRACE="0", AUTH_TRACE_DUMP="0")
         env["PYTHONPATH"] = os.pathsep.join(
-            part for part in (str(self.auth_project), env.get("PYTHONPATH", "")) if part
+            part for part in (str(Path(__file__).resolve().parent / "engine"), env.get("PYTHONPATH", "")) if part
         )
         process = None
         try:
             process = subprocess.Popen(
-                [self.python, "-m", "webui.team.mother_login_worker"],
-                cwd=str(self.auth_project), env=env,
+                [self.python, "-m", self.worker_module],
+                cwd=str(Path(__file__).resolve().parent / "engine"), env=env,
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL, text=True, encoding="utf-8",
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
