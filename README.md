@@ -33,3 +33,20 @@ print(result.refresh_token)
 ## 当前实现
 
 协议实现通过适配器加载现有账号池的 `AuthFlow`，因此账号池和独立组件使用同一套 CSRF、OAuth、指纹、代理固定、密码、TOTP、callback、网页 session 和 RT 流程。后续替换底层实现时，只需保持 `CredentialSessionClient` 接口。
+
+## 0.4.0: optional mailbox codes and authenticated password change
+
+`CredentialSessionClient.login(..., mail_code_url=...)` optionally uses a separate
+proxy session for mailbox verification. Only the approved HTTPS mailsapi fetch
+endpoint is accepted; old codes, redirects and unknown payloads are rejected.
+
+`CredentialSessionClient.change_password(email=..., password=..., totp_secret=...,
+mail_code_url=..., new_password=..., proxy_url=..., on_stage=...)` changes the
+remote password only after entering the authenticated reset page. The caller
+must encrypt and persist the new password **before** calling it, journal stage
+updates, treat timeouts as uncertain, and perform fresh-login verification.
+Never automatically replay a password mutation. The operation does not return
+new AT/session/RT; call login explicitly after confirmed success.
+
+This flow is covered by mocked contract tests; live end-to-end password rotation
+with the provided mailbox service has not yet been confirmed.

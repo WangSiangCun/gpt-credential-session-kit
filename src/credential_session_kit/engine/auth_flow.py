@@ -1948,6 +1948,8 @@ class AuthFlow:
         }
         if email:
             query_params["login_hint"] = email
+        if getattr(self, "_password_change_intent", False):
+            query_params["post_login_password_reset"] = "true"
         signin_url = f"https://chatgpt.com/api/auth/signin/openai?{urlencode(query_params)}"
         resp = self.session.post(
             signin_url,
@@ -2063,13 +2065,13 @@ class AuthFlow:
             "timezone": fp.get("timezone", ""),  # IP 联动时区
         }
 
-    def get_sentinel_token(self, device_id: str) -> str:
+    def get_sentinel_token(self, device_id: str, *, flow_name: str = "authorize_continue") -> str:
         logger.info("[4/10] 获取 Sentinel Token (PoW)...")
         from sentinel import get_sentinel_token
         result = get_sentinel_token(
             self.session,
             device_id=device_id,
-            flow="authorize_continue",
+            flow=flow_name,
             **self._sentinel_fp_kwargs(),
         )
         token, so_token = result

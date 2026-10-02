@@ -84,6 +84,40 @@ class CredentialSessionClient:
         self.python = python or sys.executable
         self.worker_module = "credential_session_kit.engine.worker"
 
+    def change_password(self, *, email, password, totp_secret, mail_code_url,
+                        new_password, proxy_url, on_stage=None, timeout=300):
+        from .mail_code import validate_mail_code_url
+        from .engine.password_change import validate_new_password
+        validate_new_password(new_password)
+        if not email or not password or not proxy_url:
+            raise CredentialSessionError("credentials")
+        payload = {"mode": "change_password", "email": email.strip().lower(),
+                   "password": password, "totp_secret": totp_secret,
+                   "mail_code_url": validate_mail_code_url(mail_code_url),
+                   "new_password": new_password, "proxy": proxy_url}
+        env = {key: value for key, value in os.environ.items()
+               if key.upper() not in {"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"}}
+        env.update(PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1",
+                   AUTH_HTTP_TRACE="0", AUTH_TRACE_DUMP="0")
+        env["PYTHONPATH"] = os.pathsep.join(
+            part for part in (str(Path(__file__).resolve().parent / "engine"),
+                              env.get("PYTHONPATH", "")) if part)
+        try:
+            process = subprocess.Popen([self.python, "-m", self.worker_module],
+                cwd=str(Path(__file__).resolve().parent / "engine"), env=env,
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                text=True, encoding="utf-8", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            result, error = _stream_worker(process, payload, timeout, on_stage)
+            if error or process.returncode != 0 or not result:
+                raise CredentialSessionError(str((error or {}).get("code") or "security_password_uncertain"))
+            if result.get("password_changed") is not True or result.get("email") != payload["email"]:
+                raise CredentialSessionError("security_password_uncertain")
+            return {"password_changed": True}
+        except OSError:
+            raise CredentialSessionError("auth_runner") from None
+        finally:
+            payload.clear()
+
 
     def preflight(self, proxy_url: str, timeout: int = 180) -> dict:
         """Run the account-pool proxy preflight without starting a login."""
@@ -141,6 +175,7 @@ class CredentialSessionClient:
         timeout: int = 300,
         on_stage=None,
         workspace_id: str = "",
+        mail_code_url: str = "",
     ) -> CredentialResult:
         values = {
             "email": str(email or "").strip(),
@@ -151,6 +186,9 @@ class CredentialSessionClient:
         if not all(values.values()):
             raise CredentialSessionError("credentials")
         values["workspace_id"] = str(workspace_id or "").strip()
+        if mail_code_url:
+            from .mail_code import validate_mail_code_url
+            values["mail_code_url"] = validate_mail_code_url(mail_code_url)
         env = {
             key: value for key, value in os.environ.items()
             if key.upper() not in {

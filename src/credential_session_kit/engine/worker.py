@@ -315,7 +315,16 @@ def login_via_account_pool(payload, emit, factory=None):
         return current
 
     flow = new_flow()
+    mail_session = None
     try:
+        mail_provider = _NoEmailOtp()
+        if payload.get('mail_code_url'):
+            from credential_session_kit.mail_code import MailCodeProvider
+            from http_client import create_http_session
+            mail_session = create_http_session(proxy=payload['proxy'])
+            mail_provider = MailCodeProvider(payload['email'], payload['mail_code_url'], mail_session, emit=emit)
+            emit('mail_preflight')
+            mail_provider.prepare()
         result = None
         for attempt in range(2):
             emit('protocol' if attempt == 0 else 'state_reset')
@@ -324,7 +333,7 @@ def login_via_account_pool(payload, emit, factory=None):
                     flow,
                     payload['proxy'],
                     flow.run_protocol_login,
-                    _NoEmailOtp(),
+                    mail_provider,
                     payload['email'],
                     payload['password'],
                     require_session=True,
@@ -366,6 +375,8 @@ def login_via_account_pool(payload, emit, factory=None):
         return {'type': 'result', 'email': payload['email'], 'credentials': values}
     finally:
         flow.session.close()
+        if mail_session is not None:
+            mail_session.close()
 
 
 def login(payload, emit, factory=None):
@@ -627,6 +638,9 @@ def preflight(payload, emit, factory=None):
 
 
 def error_code(exc):
+    from credential_session_kit.errors import CredentialSessionError
+    if isinstance(exc, CredentialSessionError) and str(exc.code).startswith(('mail_code_', 'security_')):
+        return exc.code
     if isinstance(exc, LoginFailure):
         return str(exc)
     diagnostic = getattr(exc, 'session_diagnostic', None)
@@ -716,7 +730,11 @@ def main():
             raise LoginFailure('unknown')
         payload = json.loads(line)
         with open(os.devnull, 'w') as sink, contextlib.redirect_stdout(sink), contextlib.redirect_stderr(sink):
-            runner = preflight if payload.get('mode') == 'preflight' else login
+            if payload.get('mode') == 'change_password':
+                from password_change import run_password_change
+                runner = run_password_change
+            else:
+                runner = preflight if payload.get('mode') == 'preflight' else login
             result = runner(payload, lambda stage: send({'type': 'stage', 'stage': stage}))
         send(result)
     except Exception as exc:
