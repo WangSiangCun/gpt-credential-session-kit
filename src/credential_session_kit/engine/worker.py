@@ -291,6 +291,7 @@ def login_via_account_pool(payload, emit, factory=None):
         current.result.password = payload['password']
         current.result.totp_secret = payload['totp_secret']
         current._expected_login_email = payload['email']
+        current._target_workspace_id = str(payload.get('workspace_id') or '').strip()
         current._is_existing_account = True
         from functools import wraps
         stages = {
@@ -350,6 +351,17 @@ def login_via_account_pool(payload, emit, factory=None):
         }
         if not all(20 <= len(value) <= 65536 for value in values.values()):
             raise LoginFailure('credentials_incomplete')
+        target = str(payload.get('workspace_id') or '').strip()
+        if target:
+            import base64
+            try:
+                part = values['access_token'].split('.')[1]
+                claims = json.loads(base64.urlsafe_b64decode(part + '=' * (-len(part) % 4)))
+                account = claims.get('https://api.openai.com/auth', {})
+            except Exception:
+                account = {}
+            if account.get('chatgpt_account_id') != target or account.get('chatgpt_plan_type') == 'free':
+                raise LoginFailure('workspace_mismatch')
         emit('credentials')
         return {'type': 'result', 'email': payload['email'], 'credentials': values}
     finally:

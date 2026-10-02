@@ -1384,6 +1384,7 @@ class AuthFlow:
         self._codex_rt_attempted = True
         self._check_stopped()
 
+        self._select_target_workspace = True
         logger.info("尝试 Codex OAuth 直连换取 refresh_token ...")
         try:
             auth_url, state, verifier, redirect_uri, client_id = self._build_codex_authorize()
@@ -2605,6 +2606,8 @@ class AuthFlow:
 
     def _extract_workspace_id(self) -> str:
         """从 cookie 中提取 workspace_id"""
+        if getattr(self, "_select_target_workspace", False) and getattr(self, "_target_workspace_id", ""):
+            return self._target_workspace_id
         try:
             auth_session = self.session.cookies.get("oai-client-auth-session", "")
             if auth_session:

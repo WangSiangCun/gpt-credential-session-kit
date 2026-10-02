@@ -140,6 +140,7 @@ class CredentialSessionClient:
         proxy_url: str,
         timeout: int = 300,
         on_stage=None,
+        workspace_id: str = "",
     ) -> CredentialResult:
         values = {
             "email": str(email or "").strip(),
@@ -149,6 +150,7 @@ class CredentialSessionClient:
         }
         if not all(values.values()):
             raise CredentialSessionError("credentials")
+        values["workspace_id"] = str(workspace_id or "").strip()
         env = {
             key: value for key, value in os.environ.items()
             if key.upper() not in {

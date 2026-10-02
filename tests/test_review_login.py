@@ -110,3 +110,12 @@ def test_timeout_keeps_emitted_progress_and_reaps_child():
         _stream_worker(process, {}, .6, stages.append)
     assert error.value.code == "auth_timeout"
     assert stages == ["password"] and process.poll() is not None
+
+
+def test_oauth_target_overrides_default_workspace_only_in_oauth_phase():
+    flow = object.__new__(AuthFlow)
+    flow._target_workspace_id = "team-target"
+    flow.session = SimpleNamespace(cookies={})
+    assert flow._extract_workspace_id() == ""
+    flow._select_target_workspace = True
+    assert flow._extract_workspace_id() == "team-target"
