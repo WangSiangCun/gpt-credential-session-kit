@@ -52,7 +52,6 @@ type AdminHandlers struct {
 	Compliance             *admin.ComplianceHandler
 	AuditLog               *admin.AuditLogHandler
 	Lottery                *admin.LotteryHandler
-	IntelligenceTest       *admin.IntelligenceTestHandler
 }
 
 // Handlers contains all HTTP handlers

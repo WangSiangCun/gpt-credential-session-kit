@@ -25,11 +25,6 @@ func RegisterUserRoutes(
 	// 用户管理面变更类操作入审计（含 TOTP 启用/禁用、step-up 验证、密码修改等安全事件）
 	authenticated.Use(gin.HandlerFunc(auditLog))
 	{
-		// 智力测试结果（只读，配置与执行接口仍由管理员路由保护）
-		if h.Admin != nil && h.Admin.IntelligenceTest != nil {
-			authenticated.GET("/intelligence-tests", h.Admin.IntelligenceTest.GetPublic)
-		}
-
 		// 用户接口
 		user := authenticated.Group("/user")
 		{

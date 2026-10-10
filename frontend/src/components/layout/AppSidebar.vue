@@ -757,7 +757,6 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
     { path: '/support-tickets', label: t('nav.supportTickets'), icon: SupportTicketIcon, featureFlag: flagUserSupportTickets, badge: () => supportTicketStore.userUnread },
     { path: '/account-market', label: t('nav.accountMarket'), icon: ServerIcon, hideInSimpleMode: true },
-    { path: '/intelligence-test', label: '智力测试', icon: ChartIcon },
     { path: '/profile', label: t('nav.profile'), icon: UserIcon },
     ...customMenuItemsForUser.value.map((item): NavItem => ({
       path: `/custom/${item.id}`,
@@ -830,7 +829,6 @@ const adminNavItems = computed((): NavItem[] => {
       { path: '/admin/request-captures', label: t('admin.requestCapture.title'), icon: RequestCaptureIcon, featureFlag: () => adminSettingsStore.requestCaptureEnabled },
       { path: '/admin/harvest-flow', label: t('nav.harvestFlow'), icon: FlowIcon },
     ] },
-    { path: '/admin/intelligence-test', label: '智力测试', icon: ChartIcon },
     { path: '/admin/account-market', label: t('nav.accountMarketAdmin'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/admin/plugins', label: t('nav.plugins'), icon: PluginIcon, featureFlag: flagPluginManagement },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },

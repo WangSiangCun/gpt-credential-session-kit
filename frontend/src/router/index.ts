@@ -639,22 +639,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/intelligence-test',
-    name: 'IntelligenceTest',
-    component: () => import('@/views/user/IntelligenceTestView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: '智力测试'
-    }
-  },
-  {
-    path: '/admin/intelligence-test',
-    name: 'AdminIntelligenceTest',
-    component: () => import('@/views/admin/IntelligenceTestView.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true, title: '智力测试' }
-  },
-  {
     path: '/admin/account-market',
     name: 'AdminAccountMarket',
     component: () => import('@/views/admin/AccountMarketView.vue'),

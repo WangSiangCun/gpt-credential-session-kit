@@ -46,7 +46,6 @@ func ProvideAdminHandlers(
 	accountOpsHandler *admin.AccountOpsHandler,
 	accountTokenGuardHandler *admin.AccountTokenGuardHandler,
 	accountTokenGuardV2Handler *admin.AccountTokenGuardV2Handler,
-	intelligenceTestHandler *admin.IntelligenceTestHandler,
 	channelHandler *admin.ChannelHandler,
 	channelMonitorHandler *admin.ChannelMonitorHandler,
 	channelMonitorTemplateHandler *admin.ChannelMonitorRequestTemplateHandler,
@@ -115,7 +114,6 @@ func ProvideAdminHandlers(
 		Compliance:             complianceHandler,
 		AuditLog:               auditLogHandler,
 		Lottery:                lotteryHandler,
-		IntelligenceTest:       intelligenceTestHandler,
 	}
 }
 
@@ -330,7 +328,6 @@ var ProviderSet = wire.NewSet(
 	admin.NewAccountOpsHandler,
 	admin.NewAccountTokenGuardHandler,
 	admin.NewAccountTokenGuardV2Handler,
-	admin.NewIntelligenceTestHandler,
 	admin.NewChannelHandler,
 	admin.NewChannelMonitorHandler,
 	admin.NewChannelMonitorRequestTemplateHandler,

@@ -141,7 +141,6 @@ func RegisterAdminRoutes(
 
 		// 鹈鹕测智用户展示
 		registerPelicanShowcaseRoutes(admin, h)
-		registerIntelligenceTestRoutes(admin, h)
 
 		// 渠道管理
 		registerChannelRoutes(admin, h)
@@ -937,15 +936,6 @@ func registerPelicanShowcaseRoutes(admin *gin.RouterGroup, h *handler.Handlers) 
 	admin.POST("/pelican-group-tests/:id/run", h.Admin.PelicanGroupTest.RunPlan)
 	admin.GET("/pelican-group-test-results", h.Admin.PelicanGroupTest.ListResults)
 	admin.GET("/pelican-group-test-results/:id", h.Admin.PelicanGroupTest.GetResult)
-}
-
-func registerIntelligenceTestRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
-	tests := admin.Group("/intelligence-tests")
-	{
-		tests.GET("", h.Admin.IntelligenceTest.Get)
-		tests.PUT("", h.Admin.IntelligenceTest.Update)
-		tests.POST("/:group_id/run", h.Admin.IntelligenceTest.Run)
-	}
 }
 
 func registerErrorPassthroughRoutes(admin *gin.RouterGroup, h *handler.Handlers) {

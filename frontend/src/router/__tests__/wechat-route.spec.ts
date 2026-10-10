@@ -62,3 +62,28 @@ describe('router WeChat OAuth route', () => {
     expect(route?.meta.title).toBe('WeChat Payment Callback')
   })
 })
+
+
+describe('router custom intelligence retirement preserves upstream operations', () => {
+  it.each(['/intelligence-test', '/admin/intelligence-test'])(
+    'resolves retired custom page %s to NotFound', async (path) => {
+      const { default: router } = await import('@/router')
+      expect(router.hasRoute('IntelligenceTest')).toBe(false)
+      expect(router.hasRoute('AdminIntelligenceTest')).toBe(false)
+      expect(router.resolve(path).name).toBe('NotFound')
+    },
+  )
+
+  it.each([
+    ['/pelican-showcase', 'PelicanShowcase', false],
+    ['/admin/pelican-tests', 'AdminPelicanTests', true],
+    ['/admin/account-quality', 'AdminAccountQuality', true],
+  ])('keeps upstream page %s and its access metadata', async (path, name, requiresAdmin) => {
+    const { default: router } = await import('@/router')
+    const route = router.resolve(path)
+    expect(route.name).toBe(name)
+    expect(route.meta.requiresAuth).toBe(true)
+    expect(route.meta.requiresAdmin === true).toBe(requiresAdmin)
+    expect(route.matched.at(-1)?.components?.default).toBeTypeOf('function')
+  })
+})
