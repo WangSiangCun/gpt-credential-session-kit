@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"sort"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -23,6 +24,7 @@ type AvailableChannelHandler struct {
 	channelService *service.ChannelService
 	apiKeyService  *service.APIKeyService
 	settingService *service.SettingService
+	usageService   *service.UsageService
 }
 
 // NewAvailableChannelHandler 创建用户侧可用渠道 handler。
@@ -30,20 +32,26 @@ func NewAvailableChannelHandler(
 	channelService *service.ChannelService,
 	apiKeyService *service.APIKeyService,
 	settingService *service.SettingService,
+	usageService *service.UsageService,
 ) *AvailableChannelHandler {
 	return &AvailableChannelHandler{
 		channelService: channelService,
 		apiKeyService:  apiKeyService,
 		settingService: settingService,
+		usageService:   usageService,
 	}
 }
 
 // featureEnabled 返回 available-channels 开关是否启用。默认关闭（opt-in）。
-func (h *AvailableChannelHandler) featureEnabled(c *gin.Context) bool {
+func (h *AvailableChannelHandler) runtimeSettings(c *gin.Context) service.AvailableChannelsRuntime {
 	if h.settingService == nil {
-		return false
+		return service.AvailableChannelsRuntime{}
 	}
-	return h.settingService.GetAvailableChannelsRuntime(c.Request.Context()).Enabled
+	return h.settingService.GetAvailableChannelsRuntime(c.Request.Context())
+}
+
+func publicAccountsVisible(runtime service.AvailableChannelsRuntime) bool {
+	return runtime.QuotaVisible && runtime.AccountsVisible
 }
 
 // userAvailableGroup 用户可见的分组概要（白名单字段）。
@@ -103,6 +111,18 @@ type userSupportedModel struct {
 	Pricing  *userSupportedModelPricing `json:"pricing"`
 }
 
+// userPublicChannelAccount is a read-only administrator-style projection. Never add credentials,
+// internal IDs, notes or provider error details to this user-facing DTO.
+type userPublicChannelAccount struct {
+	Name                  string   `json:"name"`
+	Email                 string   `json:"email,omitempty"`
+	PlanType              string   `json:"plan_type,omitempty"`
+	OfficialDirect        bool     `json:"official_direct"`
+	Status                string   `json:"status"`
+	Available             bool     `json:"available"`
+	QuotaRemainingPercent *float64 `json:"quota_remaining_percent,omitempty"`
+}
+
 // userChannelPlatformSection 单渠道内某个平台的子视图：用户可见的分组 + 该平台
 // 支持的模型。按 platform 聚合后让前端可以把渠道名作为 row-group 一次渲染，
 // 后面的平台行按 sections 顺序铺开。
@@ -117,9 +137,32 @@ type userChannelPlatformSection struct {
 // 每个渠道聚合为一条记录，内嵌 platforms 子数组：每个 section 对应一个平台，
 // 包含该平台的 groups 和 supported_models。
 type userAvailableChannel struct {
-	Name        string                       `json:"name"`
-	Description string                       `json:"description"`
-	Platforms   []userChannelPlatformSection `json:"platforms"`
+	Name                  string                       `json:"name"`
+	Description           string                       `json:"description"`
+	QuotaRemainingPercent *float64                     `json:"quota_remaining_percent,omitempty"`
+	Accounts              []userPublicChannelAccount   `json:"accounts,omitempty"`
+	Platforms             []userChannelPlatformSection `json:"platforms"`
+}
+
+type userChannelRequestTimelineResponse struct {
+	RequestCount   int                          `json:"request_count"`
+	RefreshSeconds int                          `json:"refresh_seconds"`
+	Channels       []userChannelRequestTimeline `json:"channels"`
+}
+
+type userChannelRequestTimeline struct {
+	Name                string                              `json:"name"`
+	TotalRequests       int                                 `json:"total_requests"`
+	AverageFirstTokenMs *float64                            `json:"average_first_token_ms"`
+	AverageActualCost   float64                             `json:"average_actual_cost"`
+	AverageCacheHitRate *float64                            `json:"average_cache_hit_rate,omitempty"`
+	Segments            []userChannelRequestTimelineSegment `json:"segments"`
+}
+
+type userChannelRequestTimelineSegment struct {
+	Index        int      `json:"index"`
+	Status       string   `json:"status"`
+	FirstTokenMs *float64 `json:"first_token_ms,omitempty"`
 }
 
 // List 列出当前用户可见的「可用渠道」。
@@ -133,7 +176,8 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 
 	// Feature 未启用时返回空数组（不暴露渠道信息）。检查放在认证之后，
 	// 保持与未开关前的 401 行为一致：未登录先 401，登录后再按开关决定。
-	if !h.featureEnabled(c) {
+	runtime := h.runtimeSettings(c)
+	if !runtime.Enabled {
 		response.Success(c, []userAvailableChannel{})
 		return
 	}
@@ -167,14 +211,177 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 		if len(sections) == 0 {
 			continue
 		}
+		var publicAccounts []userPublicChannelAccount
+		// Account details are subordinate to the quota switch. This keeps the
+		// user-facing account section hidden whenever quota disclosure is off.
+		if publicAccountsVisible(runtime) {
+			accounts, accountErr := h.channelService.GetPublicAccounts(
+				c.Request.Context(),
+				availableGroupIDs(ch.Groups),
+			)
+			if accountErr != nil {
+				slog.WarnContext(c.Request.Context(), "failed to load public channel accounts",
+					"channel", ch.Name,
+					"error", accountErr,
+				)
+			} else {
+				publicAccounts = toUserPublicAccounts(accounts, runtime.QuotaVisible)
+			}
+		}
+
+		var quotaRemainingPercent *float64
+		if runtime.QuotaVisible {
+			quotaSummary, quotaErr := h.channelService.GetQuotaSummary(
+				c.Request.Context(),
+				visibleGroupIDs(visibleGroups),
+			)
+			if quotaErr != nil {
+				slog.WarnContext(c.Request.Context(), "failed to load available channel quota summary",
+					"channel", ch.Name,
+					"error", quotaErr,
+				)
+			}
+			if quotaSummary != nil {
+				quotaRemainingPercent = &quotaSummary.RemainingPercent
+			}
+		}
 		out = append(out, userAvailableChannel{
-			Name:        ch.Name,
-			Description: ch.Description,
-			Platforms:   sections,
+			Name:                  ch.Name,
+			Description:           ch.Description,
+			QuotaRemainingPercent: quotaRemainingPercent,
+			Accounts:              publicAccounts,
+			Platforms:             sections,
 		})
 	}
 
 	response.Success(c, out)
+}
+
+// RequestTimeline returns a privacy-safe, compact snapshot of recent user
+// requests for every channel visible to the current user.
+// GET /api/v1/channels/request-timeline
+func (h *AvailableChannelHandler) RequestTimeline(c *gin.Context) {
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	runtime := h.runtimeSettings(c)
+	if !runtime.Enabled || (!runtime.TimelineEnabled && !runtime.CacheHitRateVisible) {
+		response.Success(c, userChannelRequestTimelineResponse{
+			RequestCount:   0,
+			RefreshSeconds: 0,
+			Channels:       []userChannelRequestTimeline{},
+		})
+		return
+	}
+
+	userGroups, err := h.apiKeyService.GetAvailableGroups(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	allowedGroupIDs := make(map[int64]struct{}, len(userGroups))
+	for i := range userGroups {
+		allowedGroupIDs[userGroups[i].ID] = struct{}{}
+	}
+
+	channels, err := h.channelService.ListAvailable(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	visibleChannels := make([]service.AvailableChannel, 0, len(channels))
+	channelIDs := make([]int64, 0, len(channels))
+	for _, channel := range channels {
+		if channel.Status != service.StatusActive || len(filterUserVisibleGroups(channel.Groups, allowedGroupIDs)) == 0 {
+			continue
+		}
+		visibleChannels = append(visibleChannels, channel)
+		channelIDs = append(channelIDs, channel.ID)
+	}
+
+	timelines, err := h.usageService.GetChannelRequestTimelines(
+		c.Request.Context(),
+		channelIDs,
+		runtime.TimelineRequestCount,
+	)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	out := make([]userChannelRequestTimeline, 0, len(visibleChannels))
+	for _, channel := range visibleChannels {
+		item := userChannelRequestTimeline{
+			Name:     channel.Name,
+			Segments: []userChannelRequestTimelineSegment{},
+		}
+		if timeline := timelines[channel.ID]; timeline != nil {
+			item.TotalRequests = timeline.TotalRequests
+			item.AverageFirstTokenMs = timeline.AverageFirstTokenMs
+			item.AverageActualCost = timeline.AverageActualCost
+			if runtime.CacheHitRateVisible {
+				item.AverageCacheHitRate = timeline.AverageCacheHitRate
+			}
+			item.Segments = make([]userChannelRequestTimelineSegment, 0, len(timeline.Segments))
+			for _, segment := range timeline.Segments {
+				status := "success"
+				if segment.FailedCount > 0 {
+					status = "failed"
+				}
+				item.Segments = append(item.Segments, userChannelRequestTimelineSegment{
+					Index:        segment.Index,
+					Status:       status,
+					FirstTokenMs: segment.AverageFirstTokenMs,
+				})
+			}
+		}
+		out = append(out, item)
+	}
+
+	response.Success(c, userChannelRequestTimelineResponse{
+		RequestCount:   runtime.TimelineRequestCount,
+		RefreshSeconds: runtime.TimelineRefreshSeconds,
+		Channels:       out,
+	})
+}
+
+func toUserPublicAccounts(accounts []service.PublicChannelAccount, includeQuota bool) []userPublicChannelAccount {
+	out := make([]userPublicChannelAccount, 0, len(accounts))
+	for _, account := range accounts {
+		item := userPublicChannelAccount{
+			Name:           account.Name,
+			Email:          account.Email,
+			PlanType:       account.PlanType,
+			OfficialDirect: account.OfficialDirect,
+			Status:         account.Status,
+			Available:      account.Available,
+		}
+		if includeQuota {
+			item.QuotaRemainingPercent = account.QuotaRemainingPercent
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func availableGroupIDs(groups []service.AvailableGroupRef) []int64 {
+	ids := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		ids = append(ids, group.ID)
+	}
+	return ids
+}
+
+func visibleGroupIDs(groups []userAvailableGroup) []int64 {
+	ids := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		ids = append(ids, group.ID)
+	}
+	return ids
 }
 
 // buildPlatformSections 把一个渠道按 visibleGroups 的平台集合拆成有序的 section 列表：

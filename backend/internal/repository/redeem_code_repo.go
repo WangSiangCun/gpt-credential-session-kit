@@ -34,6 +34,9 @@ func (r *redeemCodeRepository) Create(ctx context.Context, code *service.RedeemC
 		SetNillableUsedBy(code.UsedBy).
 		SetNillableUsedAt(code.UsedAt).
 		SetNillableGroupID(code.GroupID).
+		SetNillableBatchID(code.BatchID).
+		SetBatchUserOnce(code.BatchUserOnce).
+		SetGlobalUserOnce(code.GlobalUserOnce).
 		Save(ctx)
 	if err == nil {
 		code.ID = created.ID
@@ -60,7 +63,10 @@ func (r *redeemCodeRepository) CreateBatch(ctx context.Context, codes []service.
 			SetNillableExpiresAt(c.ExpiresAt).
 			SetNillableUsedBy(c.UsedBy).
 			SetNillableUsedAt(c.UsedAt).
-			SetNillableGroupID(c.GroupID)
+			SetNillableGroupID(c.GroupID).
+			SetNillableBatchID(c.BatchID).
+			SetBatchUserOnce(c.BatchUserOnce).
+			SetGlobalUserOnce(c.GlobalUserOnce)
 		builders = append(builders, b)
 	}
 
@@ -339,6 +345,46 @@ func (r *redeemCodeRepository) Use(ctx context.Context, id, userID int64) error 
 	return nil
 }
 
+func (r *redeemCodeRepository) ClaimBatchUse(ctx context.Context, batchID string, userID, redeemCodeID int64) error {
+	client := clientFromContext(ctx, r.client)
+	result, err := client.ExecContext(ctx, `
+		INSERT INTO redeem_batch_user_claims (batch_id, user_id, redeem_code_id)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (batch_id, user_id) DO NOTHING
+	`, batchID, userID, redeemCodeID)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return service.ErrRedeemBatchAlreadyUsed
+	}
+	return nil
+}
+
+func (r *redeemCodeRepository) ClaimGlobalUse(ctx context.Context, userID, redeemCodeID int64) error {
+	client := clientFromContext(ctx, r.client)
+	result, err := client.ExecContext(ctx, `
+		INSERT INTO redeem_global_user_claims (user_id, redeem_code_id)
+		VALUES ($1, $2)
+		ON CONFLICT (user_id) DO NOTHING
+	`, userID, redeemCodeID)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return service.ErrRedeemGlobalAlreadyUsed
+	}
+	return nil
+}
+
 func (r *redeemCodeRepository) ListByUser(ctx context.Context, userID int64, limit int) ([]service.RedeemCode, error) {
 	if limit <= 0 {
 		limit = 10
@@ -413,18 +459,21 @@ func redeemCodeEntityToService(m *dbent.RedeemCode) *service.RedeemCode {
 		return nil
 	}
 	out := &service.RedeemCode{
-		ID:           m.ID,
-		Code:         m.Code,
-		Type:         m.Type,
-		Value:        m.Value,
-		Status:       m.Status,
-		UsedBy:       m.UsedBy,
-		UsedAt:       m.UsedAt,
-		Notes:        derefString(m.Notes),
-		CreatedAt:    m.CreatedAt,
-		ExpiresAt:    m.ExpiresAt,
-		GroupID:      m.GroupID,
-		ValidityDays: m.ValidityDays,
+		ID:             m.ID,
+		Code:           m.Code,
+		Type:           m.Type,
+		Value:          m.Value,
+		Status:         m.Status,
+		UsedBy:         m.UsedBy,
+		UsedAt:         m.UsedAt,
+		Notes:          derefString(m.Notes),
+		CreatedAt:      m.CreatedAt,
+		ExpiresAt:      m.ExpiresAt,
+		GroupID:        m.GroupID,
+		ValidityDays:   m.ValidityDays,
+		BatchID:        m.BatchID,
+		BatchUserOnce:  m.BatchUserOnce,
+		GlobalUserOnce: m.GlobalUserOnce,
 	}
 	if m.Edges.User != nil {
 		out.User = userEntityToService(m.Edges.User)

@@ -352,6 +352,15 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.CompactHomeEnabled != after.CompactHomeEnabled {
 		changed = append(changed, "compact_home_enabled")
 	}
+	if before.QQGroupEnabled != after.QQGroupEnabled {
+		changed = append(changed, "qq_group_enabled")
+	}
+	if before.QQGroupQRCode != after.QQGroupQRCode {
+		changed = append(changed, "qq_group_qr_code")
+	}
+	if before.QQGroupDescription != after.QQGroupDescription {
+		changed = append(changed, "qq_group_description")
+	}
 	if before.HideCcsImportButton != after.HideCcsImportButton {
 		changed = append(changed, "hide_ccs_import_button")
 	}
@@ -637,6 +646,18 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.ModelPlazaDescription != after.ModelPlazaDescription {
 		changed = append(changed, "model_plaza_description")
+	}
+	if before.AvailableChannelsQuotaVisible != after.AvailableChannelsQuotaVisible {
+		changed = append(changed, "available_channels_quota_visible")
+	}
+	if before.AvailableChannelsAccountsVisible != after.AvailableChannelsAccountsVisible {
+		changed = append(changed, "available_channels_accounts_visible")
+	}
+	if before.AvailableChannelsCacheHitRateVisible != after.AvailableChannelsCacheHitRateVisible {
+		changed = append(changed, "available_channels_cache_hit_rate_visible")
+	}
+	if before.AvailableChannelsTimelineEnabled != after.AvailableChannelsTimelineEnabled {
+		changed = append(changed, "available_channels_timeline_enabled")
 	}
 	if before.SupportTicketEnabled != after.SupportTicketEnabled {
 		changed = append(changed, "support_ticket_enabled")

@@ -132,6 +132,8 @@ const planLabel = computed(() => {
     case 'chatgptpro':
     case 'pro':
       return 'Pro'
+    case 'pro20x':
+      return 'PRO 20x'
     case 'free':
     case 'basic':
       return props.platform === 'grok' ? 'Grok Free' : 'Free'

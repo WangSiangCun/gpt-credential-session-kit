@@ -1,6 +1,6 @@
 <template>
   <aside
-    class="sidebar"
+    class="pixel-sidebar cave-sidebar sidebar"
     :class="[
       sidebarCollapsed ? 'w-[72px]' : 'w-64',
       { '-translate-x-full lg:translate-x-0': !mobileOpen }
@@ -11,7 +11,7 @@
       <!-- Custom Logo or Default Logo -->
       <router-link
         :to="homePath"
-        class="sidebar-logo flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl shadow-glow transition-opacity hover:opacity-80"
+        class="sidebar-logo flex h-9 w-9 items-center justify-center overflow-hidden transition-opacity hover:opacity-80"
         @click="handleMenuItemClick(homePath)"
       >
         <img v-if="settingsLoaded" :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
@@ -24,12 +24,15 @@
         >
           {{ siteName }}
         </router-link>
-        <!-- Version Badge -->
-        <VersionBadge :version="siteVersion" />
       </div>
     </div>
 
     <FeatureSearch v-if="isAdmin" :items="searchNavItems" :collapsed="sidebarCollapsed" @navigate="handleMenuItemClick" />
+    <div class="cave-sidebar-decoration" aria-hidden="true">
+      <span class="cave-ore cave-ore-amethyst"></span>
+      <span class="cave-ore cave-ore-emerald"></span>
+      <span class="cave-moss-patch"></span>
+    </div>
 
     <!-- Navigation -->
     <nav ref="sidebarNavRef" class="sidebar-nav scrollbar-hide">
@@ -56,42 +59,44 @@
           <template v-for="item in adminNavItems" :key="item.path">
             <!-- Collapsible group (has children) -->
             <template v-if="item.children?.length">
-              <button
-                type="button"
-                class="sidebar-link mb-1 w-full"
-                :class="{
-                  'sidebar-link-active': isGroupActive(item) && !isGroupExpanded(item),
-                  'sidebar-link-collapsed': sidebarCollapsed
-                }"
-                :title="sidebarCollapsed ? item.label : undefined"
-                @click="handleGroupClick(item)"
-              >
-                <component :is="item.icon" class="h-5 w-5 flex-shrink-0" />
-                <span
-                  class="sidebar-label sidebar-label-flex"
-                  :class="{ 'sidebar-label-collapsed': sidebarCollapsed }"
-                  :aria-hidden="sidebarCollapsed ? 'true' : 'false'"
+              <div class="top-nav-group">
+                <button
+                  type="button"
+                  class="sidebar-link mb-1 w-full"
+                  :class="{
+                    'sidebar-link-active': isGroupActive(item) && !isGroupExpanded(item),
+                    'sidebar-link-collapsed': sidebarCollapsed
+                  }"
+                  :title="sidebarCollapsed ? item.label : undefined"
+                  @click="handleGroupClick(item)"
                 >
-                  <span class="min-w-0 truncate">{{ item.label }}</span>
-                  <ChevronDownIcon
-                    class="h-4 w-4 flex-shrink-0 transition-transform duration-200"
-                    :class="isGroupExpanded(item) ? 'rotate-180' : ''"
-                  />
-                </span>
-              </button>
-              <!-- Children -->
-              <div v-if="!sidebarCollapsed && isGroupExpanded(item)" class="mb-1 ml-4 border-l border-gray-200 pl-2 dark:border-dark-600">
-                <router-link
-                  v-for="child in item.children"
-                  :key="child.path"
-                  :to="child.path"
-                  class="sidebar-link mb-0.5 py-1.5 text-sm"
-                  :class="{ 'sidebar-link-active': route.path === child.path }"
-                  @click="handleMenuItemClick(child.path)"
-                >
-                  <component :is="child.icon" class="h-4 w-4 flex-shrink-0" />
-                  <span>{{ child.label }}</span>
-                </router-link>
+                  <PixelNavIcon :path="item.path" />
+                  <span
+                    class="sidebar-label sidebar-label-flex"
+                    :class="{ 'sidebar-label-collapsed': sidebarCollapsed }"
+                    :aria-hidden="sidebarCollapsed ? 'true' : 'false'"
+                  >
+                    <span class="min-w-0 truncate">{{ item.label }}</span>
+                    <ChevronDownIcon
+                      class="h-4 w-4 flex-shrink-0 transition-transform duration-200"
+                      :class="isGroupExpanded(item) ? 'rotate-180' : ''"
+                    />
+                  </span>
+                </button>
+                <!-- Children -->
+                <div v-if="!sidebarCollapsed && isGroupExpanded(item)" class="top-nav-group-menu mb-1 ml-4 border-l border-gray-200 pl-2 dark:border-dark-600">
+                  <router-link
+                    v-for="child in item.children"
+                    :key="child.path"
+                    :to="child.path"
+                    class="sidebar-link mb-0.5 py-1.5 text-sm"
+                    :class="{ 'sidebar-link-active': route.path === child.path }"
+                    @click="handleMenuItemClick(child.path)"
+                  >
+                    <PixelNavIcon :path="child.path" />
+                    <span>{{ child.label }}</span>
+                  </router-link>
+                </div>
               </div>
             </template>
             <!-- Normal item (no children) -->
@@ -112,8 +117,7 @@
               "
               @click="handleMenuItemClick(item.path)"
             >
-              <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-              <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+              <PixelNavIcon :path="item.path" />
               <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
               <span v-if="navBadge(item)" class="sidebar-nav-badge" :class="{ 'sidebar-nav-badge-collapsed': sidebarCollapsed }" data-testid="sidebar-nav-badge">{{ sidebarCollapsed ? '' : navBadgeText(item) }}</span>
             </router-link>
@@ -138,8 +142,7 @@
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
           >
-            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+            <PixelNavIcon :path="item.path" />
             <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
             <span v-if="navBadge(item)" class="sidebar-nav-badge" :class="{ 'sidebar-nav-badge-collapsed': sidebarCollapsed }" data-testid="sidebar-nav-badge">{{ sidebarCollapsed ? '' : navBadgeText(item) }}</span>
           </router-link>
@@ -159,8 +162,7 @@
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
           >
-            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+            <PixelNavIcon :path="item.path" />
             <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
             <span v-if="navBadge(item)" class="sidebar-nav-badge" :class="{ 'sidebar-nav-badge-collapsed': sidebarCollapsed }" data-testid="sidebar-nav-badge">{{ sidebarCollapsed ? '' : navBadgeText(item) }}</span>
           </router-link>
@@ -170,20 +172,6 @@
 
     <!-- Bottom Section -->
     <div class="mt-auto border-t border-gray-100 p-3 dark:border-dark-800">
-      <!-- Theme Toggle -->
-      <button
-        @click="toggleTheme"
-        class="sidebar-link mb-2 w-full"
-        :class="{ 'sidebar-link-collapsed': sidebarCollapsed }"
-        :title="sidebarCollapsed ? (isDark ? t('nav.lightMode') : t('nav.darkMode')) : undefined"
-      >
-        <SunIcon v-if="isDark" class="h-5 w-5 flex-shrink-0 text-amber-500" />
-        <MoonIcon v-else class="h-5 w-5 flex-shrink-0" />
-        <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{
-          isDark ? t('nav.lightMode') : t('nav.darkMode')
-        }}</span>
-      </button>
-
       <!-- Collapse Button -->
       <button
         @click="toggleSidebar"
@@ -213,13 +201,12 @@ import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'v
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore, useSupportTicketStore } from '@/stores'
-import VersionBadge from '@/components/common/VersionBadge.vue'
+import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import FeatureSearch from './FeatureSearch.vue'
+import PixelNavIcon from './PixelNavIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
-import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
 
 interface NavItem {
@@ -274,7 +261,6 @@ const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
 const isAdmin = computed(() => authStore.isAdmin)
 const sidebarNavRef = ref<HTMLElement | null>(null)
-const isDark = ref(document.documentElement.classList.contains('dark'))
 
 const homePath = computed(() => (
   isAdmin.value ? '/admin/dashboard' : authStore.isObserver ? '/admin/accounts' : '/dashboard'
@@ -289,7 +275,6 @@ const groupExpandOverrides = ref<Map<string, boolean>>(new Map())
 // Site settings from appStore (cached, no flicker)
 const siteName = computed(() => appStore.siteName)
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
-const siteVersion = computed(() => appStore.siteVersion)
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
 
 // SVG Icon Components
@@ -572,36 +557,6 @@ const CogIcon = {
     )
 }
 
-const SunIcon = {
-  render: () =>
-    h(
-      'svg',
-      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
-      [
-        h('path', {
-          'stroke-linecap': 'round',
-          'stroke-linejoin': 'round',
-          d: 'M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z'
-        })
-      ]
-    )
-}
-
-const MoonIcon = {
-  render: () =>
-    h(
-      'svg',
-      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
-      [
-        h('path', {
-          'stroke-linecap': 'round',
-          'stroke-linejoin': 'round',
-          d: 'M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z'
-        })
-      ]
-    )
-}
-
 const ChevronDoubleLeftIcon = {
   render: () =>
     h(
@@ -780,7 +735,10 @@ const flagBatchImageAccess = () => canUseBatchImage.value
 // 条目顺序：密钥 → 用量 → 可用渠道 → 渠道状态 → 鹈鹕测智 → 订阅/支付 → 兑换/资料。
 // 可用渠道紧挨渠道状态之上，让用户"先看自己能用什么、再看对应状态"。
 function buildSelfNavItems(withDashboard: boolean): NavItem[] {
-  const items: NavItem[] = []
+  // Keep the user-facing availability view first so the sidebar matches the login landing page.
+  const items: NavItem[] = [
+    { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
+  ]
   if (withDashboard) {
     items.push({ path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon })
   }
@@ -795,8 +753,11 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/purchase', label: purchaseNavLabel.value, icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },
     { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
     { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
+    { path: '/activities', label: t('nav.activities'), icon: GiftIcon, hideInSimpleMode: true },
     { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
     { path: '/support-tickets', label: t('nav.supportTickets'), icon: SupportTicketIcon, featureFlag: flagUserSupportTickets, badge: () => supportTicketStore.userUnread },
+    { path: '/account-market', label: t('nav.accountMarket'), icon: ServerIcon, hideInSimpleMode: true },
+    { path: '/intelligence-test', label: '智力测试', icon: ChartIcon },
     { path: '/profile', label: t('nav.profile'), icon: UserIcon },
     ...customMenuItemsForUser.value.map((item): NavItem => ({
       path: `/custom/${item.id}`,
@@ -841,6 +802,7 @@ const adminNavItems = computed((): NavItem[] => {
   const baseItems: NavItem[] = [
     { path: '/admin/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
     { path: '/admin/ops', label: t('nav.ops'), icon: OpsMonitoringIcon, featureFlag: flagOpsMonitoring },
+    { path: '/admin/leaderboards', label: t('nav.leaderboards'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/admin/users', label: t('nav.users'), icon: UsersIcon, hideInSimpleMode: true },
     { path: '/admin/groups', label: t('nav.groups'), icon: FolderIcon },
     {
@@ -854,7 +816,6 @@ const adminNavItems = computed((): NavItem[] => {
         { path: '/admin/channels/monitor', label: t('nav.channelMonitor'), icon: SignalIcon, featureFlag: flagChannelMonitor },
       ],
     },
-    // 「仅充值」站点连管理端的「订阅管理」入口也一并收起（路由本身不拦截）。
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
     { path: '/admin/smart-ops', label: t('accountOps.smartTitle'), icon: SmartOpsIcon, expandOnly: true, children: [
@@ -869,6 +830,8 @@ const adminNavItems = computed((): NavItem[] => {
       { path: '/admin/request-captures', label: t('admin.requestCapture.title'), icon: RequestCaptureIcon, featureFlag: () => adminSettingsStore.requestCaptureEnabled },
       { path: '/admin/harvest-flow', label: t('nav.harvestFlow'), icon: FlowIcon },
     ] },
+    { path: '/admin/intelligence-test', label: '智力测试', icon: ChartIcon },
+    { path: '/admin/account-market', label: t('nav.accountMarketAdmin'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/admin/plugins', label: t('nav.plugins'), icon: PluginIcon, featureFlag: flagPluginManagement },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },
     { path: '/admin/support-tickets', label: t('nav.supportTickets'), icon: SupportTicketInboxIcon, featureFlag: flagSupportTickets, badge: () => supportTicketStore.adminPending },
@@ -885,6 +848,7 @@ const adminNavItems = computed((): NavItem[] => {
       ],
     },
     { path: '/admin/redeem', label: t('nav.redeemCodes'), icon: TicketIcon, hideInSimpleMode: true },
+    { path: '/admin/activities', label: '活动', icon: GiftIcon, hideInSimpleMode: true },
     { path: '/admin/promo-codes', label: t('nav.promoCodes'), icon: GiftIcon, hideInSimpleMode: true },
     {
       path: '/admin/affiliates',
@@ -944,12 +908,6 @@ const searchNavItems = computed(() => [
 
 function toggleSidebar() {
   appStore.toggleSidebar()
-}
-
-function toggleTheme() {
-  isDark.value = !isDark.value
-  document.documentElement.classList.toggle('dark', isDark.value)
-  localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
 }
 
 function closeMobile() {
@@ -1012,7 +970,11 @@ function toggleGroup(item: NavItem) {
  *   (router-link semantics) and ensure the group is expanded.
  */
 function handleGroupClick(item: NavItem) {
-  if (sidebarCollapsed.value) return
+  if (sidebarCollapsed.value) {
+    appStore.setSidebarCollapsed(false)
+    groupExpandOverrides.value.set(item.path, true)
+    return
+  }
   if (item.expandOnly) {
     toggleGroup(item)
     return
@@ -1024,16 +986,6 @@ function handleGroupClick(item: NavItem) {
   groupExpandOverrides.value.set(item.path, true)
 }
 
-// Initialize theme
-const savedTheme = localStorage.getItem('theme')
-if (
-  savedTheme === 'dark' ||
-  (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
-) {
-  isDark.value = true
-  document.documentElement.classList.add('dark')
-}
-
 // Fetch admin settings (for feature-gated nav items like Ops).
 watch(
   isAdmin,
@@ -1043,6 +995,19 @@ watch(
     }
   },
   { immediate: true }
+)
+
+watch(
+  () => route.fullPath,
+  () => {
+    appStore.setMobileOpen(false)
+    const activeGroup = adminNavItems.value.find(item => isGroupActive(item))
+    if (activeGroup) {
+      if (!groupExpandOverrides.value.has(activeGroup.path)) {
+        groupExpandOverrides.value.set(activeGroup.path, true)
+      }
+    }
+  }
 )
 
 onMounted(() => {
@@ -1068,6 +1033,16 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.top-nav-group {
+  display: block;
+}
+
+.top-nav-group-menu {
+  position: relative;
+  margin-left: 1rem;
+  padding-left: 0.625rem;
+}
+
 .sidebar-logo {
   flex: 0 0 2.25rem;
   min-width: 2.25rem;

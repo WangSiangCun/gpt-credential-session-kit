@@ -1441,6 +1441,18 @@ func mergeConfiguredCodexModelsManifest(
 		if err != nil {
 			return nil, false, err
 		}
+		// Appended entries have no upstream capability declaration. Keep native
+		// multi-agent defaults out of the client catalog, including embedded metadata.
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(rawModel, &fields); err != nil {
+			return nil, false, err
+		}
+		fields["multi_agent_version"] = json.RawMessage("null")
+		fields["multi_agent_reasoning_effort"] = json.RawMessage("null")
+		rawModel, err = json.Marshal(fields)
+		if err != nil {
+			return nil, false, err
+		}
 		merged = append(merged, rawModel)
 		seen[modelID] = struct{}{}
 		changed = true

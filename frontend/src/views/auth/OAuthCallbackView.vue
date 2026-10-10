@@ -163,6 +163,7 @@ import {
   loadOAuthAffiliateCode,
   oauthAffiliatePayload
 } from '@/utils/oauthAffiliate'
+import { resolveAuthenticatedHomePath } from '@/router/setupRedirect'
 
 const route = useRoute()
 const router = useRouter()
@@ -180,7 +181,7 @@ const confirmPassword = ref('')
 const invitationCode = ref('')
 const registrationError = ref('')
 const pendingProvider = ref<'github' | 'google'>('github')
-const redirectTo = ref('/dashboard')
+const redirectTo = ref('')
 const invalidCallback = ref(false)
 const EMAIL_OAUTH_PENDING_PROVIDER_KEY = 'email_oauth_pending_provider'
 
@@ -240,11 +241,11 @@ function readTokenResponse(params: URLSearchParams): OAuthTokenResponse | null {
 }
 
 function sanitizeRedirectPath(path: string | null | undefined): string {
-  if (!path) return '/dashboard'
-  if (!path.startsWith('/')) return '/dashboard'
-  if (path.startsWith('//')) return '/dashboard'
-  if (path.includes('://')) return '/dashboard'
-  if (path.includes('\n') || path.includes('\r')) return '/dashboard'
+  if (!path) return resolveAuthenticatedHomePath(false)
+  if (!path.startsWith('/')) return resolveAuthenticatedHomePath(false)
+  if (path.startsWith('//')) return resolveAuthenticatedHomePath(false)
+  if (path.includes('://')) return resolveAuthenticatedHomePath(false)
+  if (path.includes('\n') || path.includes('\r')) return resolveAuthenticatedHomePath(false)
   return path
 }
 
@@ -279,7 +280,7 @@ async function finalizeTokenResponse(tokenResponse: OAuthTokenResponse, redirect
   }
   clearAllAffiliateReferralCodes()
   appStore.showSuccess(t('auth.loginSuccess'))
-  await router.replace(sanitizeRedirectPath(redirect))
+  await router.replace(sanitizeRedirectPath(redirect || resolveAuthenticatedHomePath(authStore.isAdmin, authStore.isObserver)))
 }
 
 function hasOAuthTokenResponse(value: Partial<OAuthTokenResponse>): value is OAuthTokenResponse {
@@ -290,7 +291,7 @@ async function resumePendingEmailOAuth() {
   isProcessing.value = true
   try {
     const completion = await exchangePendingOAuthCompletion() as EmailOAuthPendingCompletion
-    const completionRedirect = completion.redirect || '/dashboard'
+    const completionRedirect = completion.redirect || ''
     if (hasOAuthTokenResponse(completion)) {
       await finalizeTokenResponse(completion, completionRedirect)
       return
@@ -300,7 +301,7 @@ async function resumePendingEmailOAuth() {
     if (provider === 'github' || provider === 'google') {
       pendingProvider.value = provider
     }
-    redirectTo.value = sanitizeRedirectPath(completionRedirect)
+    redirectTo.value = completionRedirect ? sanitizeRedirectPath(completionRedirect) : ''
 
     if (completion.error === 'invitation_required' || completion.error === 'registration_completion_required') {
       invitationRequired.value = completion.error === 'invitation_required' || completion.invitation_required === true
@@ -388,7 +389,7 @@ onMounted(async () => {
 
   isProcessing.value = true
   try {
-    await finalizeTokenResponse(tokenResponse, params.get('redirect') || '/dashboard')
+    await finalizeTokenResponse(tokenResponse, params.get('redirect') || '')
   } catch (error: unknown) {
     const message = (error as { message?: string })?.message || t('auth.loginFailed')
     appStore.showError(message)

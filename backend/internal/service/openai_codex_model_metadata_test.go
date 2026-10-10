@@ -9,6 +9,86 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestThirdPartyCodexCatalogRequiresDeclaredMultiAgentCapabilities(t *testing.T) {
+	for _, modelID := range []string{"gpt-6-astra", "gpt-6.1-sol"} {
+		for _, tt := range []struct {
+			name    string
+			fields  map[string]json.RawMessage
+			version any
+			effort  any
+		}{
+			{name: "undeclared"},
+			{name: "declared", fields: map[string]json.RawMessage{
+				"multi_agent_version":          json.RawMessage(`"v2"`),
+				"multi_agent_reasoning_effort": json.RawMessage(`"high"`),
+			}, version: "v2", effort: "high"},
+			{name: "disabled", fields: map[string]json.RawMessage{
+				"multi_agent_version":          json.RawMessage(`null`),
+				"multi_agent_reasoning_effort": json.RawMessage(`null`),
+			}},
+		} {
+			t.Run(modelID+"/"+tt.name, func(t *testing.T) {
+				account := Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{
+					"base_url":      "https://relay.example/v1",
+					"model_mapping": map[string]any{"public-model": modelID},
+				}}
+				if tt.fields != nil {
+					account.SetUpstreamModelMetadataSnapshot(UpstreamModelMetadataSnapshot{Models: map[string]UpstreamModelMetadata{
+						modelID: {CodexToolCapabilities: tt.fields},
+					}})
+				}
+				t.Run("group alias", func(t *testing.T) {
+					body, err := buildCodexModelsManifestForAccounts(PlatformOpenAI, []string{"public-model"}, []Account{account}, nil, nil, true)
+					require.NoError(t, err)
+					model := decodeCodexManifestModels(t, body)[0]
+					require.Equal(t, "public-model", model["slug"])
+					require.Equal(t, tt.version, model["multi_agent_version"])
+					require.Equal(t, tt.effort, model["multi_agent_reasoning_effort"])
+				})
+				for _, shape := range []string{"models", "data"} {
+					t.Run(shape, func(t *testing.T) {
+						field := "slug"
+						if shape == "data" {
+							field = "id"
+						}
+						entry := map[string]any{field: modelID}
+						for key, value := range tt.fields {
+							entry[key] = value
+						}
+						body, err := json.Marshal(map[string]any{shape: []any{entry}})
+						require.NoError(t, err)
+						// Exercise live declarations independently of the saved snapshot.
+						liveAccount := &Account{Platform: account.Platform, Type: account.Type, Credentials: account.Credentials}
+						manifest := &OpenAIModelsResponse{Body: convertOpenAIModelListToCodexManifestForAccount(body, liveAccount)}
+						svc := &OpenAIGatewayService{}
+						require.NoError(t, svc.CompleteAPIKeyCodexModelsManifestForClient(manifest, liveAccount))
+						model := decodeCodexManifestModels(t, manifest.Body)[0]
+						require.Equal(t, tt.version, model["multi_agent_version"])
+						require.Equal(t, tt.effort, model["multi_agent_reasoning_effort"])
+					})
+				}
+			})
+		}
+	}
+}
+
+func TestCodexCatalogAppendedModelsDoNotInferMultiAgentCapabilities(t *testing.T) {
+	body, changed, err := mergeConfiguredCodexModelsManifest(
+		[]byte(`{"models":[{"slug":"declared-model","multi_agent_version":"v2","multi_agent_reasoning_effort":"high"}]}`),
+		[]string{"gpt-6-astra", "gpt-6.1-sol"}, nil, false,
+	)
+	require.NoError(t, err)
+	require.True(t, changed)
+	models := decodeCodexManifestModels(t, body)
+	require.Len(t, models, 3)
+	require.Equal(t, "v2", models[0]["multi_agent_version"])
+	require.Equal(t, "high", models[0]["multi_agent_reasoning_effort"])
+	for _, model := range models[1:] {
+		require.Nil(t, model["multi_agent_version"])
+		require.Nil(t, model["multi_agent_reasoning_effort"])
+	}
+}
+
 func TestAstraUltraCatalogPreservesWorkflowMetadata(t *testing.T) {
 	// Ultra is a Codex workflow. Its inference effort must survive catalog sync,
 	// aliases and group generation instead of silently falling back to max.

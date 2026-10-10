@@ -75,6 +75,15 @@
           </svg>
           {{ t('admin.users.withdraw') }}
         </button>
+        <button
+          v-if="showEmailAction"
+          type="button"
+          class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300 dark:hover:bg-dark-700"
+          @click="emit('email')"
+        >
+          <Icon name="mail" size="sm" class="text-primary-500" :stroke-width="2" />
+          {{ t('admin.users.sendEmail') }}
+        </button>
       </div>
 
       <!-- Loading -->
@@ -181,8 +190,13 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 
-const props = defineProps<{ show: boolean; user: AdminUser | null; hideActions?: boolean }>()
-const emit = defineEmits(['close', 'deposit', 'withdraw'])
+const props = defineProps<{
+  show: boolean
+  user: AdminUser | null
+  hideActions?: boolean
+  showEmailAction?: boolean
+}>()
+const emit = defineEmits(['close', 'deposit', 'withdraw', 'email'])
 const { t } = useI18n()
 
 const history = ref<BalanceHistoryItem[]>([])
@@ -204,6 +218,7 @@ const typeOptions = computed(() => [
   { value: 'balance', label: t('admin.users.typeBalance') },
   { value: 'affiliate_balance', label: t('admin.users.typeAffiliateBalance') },
   { value: 'admin_balance', label: t('admin.users.typeAdminBalance') },
+  { value: 'lottery_balance', label: '抽奖奖励' },
   { value: 'concurrency', label: t('admin.users.typeConcurrency') },
   { value: 'admin_concurrency', label: t('admin.users.typeAdminConcurrency') },
   { value: 'subscription', label: t('admin.users.typeSubscription') }
@@ -246,7 +261,7 @@ const loadHistory = async (page: number) => {
 const isAdminType = (type: string) => type === 'admin_balance' || type === 'admin_concurrency'
 
 // Helper: check if balance type (includes admin_balance)
-const isBalanceType = (type: string) => type === 'balance' || type === 'admin_balance' || type === 'affiliate_balance'
+const isBalanceType = (type: string) => type === 'balance' || type === 'admin_balance' || type === 'affiliate_balance' || type === 'lottery_balance'
 
 // Helper: check if subscription type
 const isSubscriptionType = (type: string) => type === 'subscription'
@@ -306,6 +321,8 @@ const getItemTitle = (item: BalanceHistoryItem) => {
       return t('redeem.balanceAddedAffiliate')
     case 'admin_balance':
       return item.value >= 0 ? t('redeem.balanceAddedAdmin') : t('redeem.balanceDeductedAdmin')
+    case 'lottery_balance':
+      return '抽奖余额奖励'
     case 'concurrency':
       return t('redeem.concurrencyAddedRedeem')
     case 'admin_concurrency':

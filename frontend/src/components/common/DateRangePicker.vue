@@ -20,8 +20,16 @@
       </span>
     </button>
 
-    <Transition name="date-picker-dropdown">
-      <div v-if="isOpen" class="date-picker-dropdown">
+    <!-- Render outside parent stacking contexts so the picker is never clipped by a card or table. -->
+    <Teleport to="body">
+      <Transition name="date-picker-dropdown">
+        <div
+          v-if="isOpen"
+          ref="dropdownRef"
+          class="date-picker-dropdown"
+          :style="dropdownStyle"
+          @click.stop
+        >
         <!-- Quick presets -->
         <div class="date-picker-presets">
           <button
@@ -70,13 +78,14 @@
             {{ t('dates.apply') }}
           </button>
         </div>
-      </div>
-    </Transition>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 
@@ -104,11 +113,42 @@ const { t, locale } = useI18n()
 
 const isOpen = ref(false)
 const containerRef = ref<HTMLElement | null>(null)
+const dropdownRef = ref<HTMLElement | null>(null)
+const triggerRect = ref<DOMRect | null>(null)
+const dropdownPosition = ref<'bottom' | 'top'>('bottom')
 const localStartDate = ref(props.startDate)
 const localEndDate = ref(props.endDate)
 const activePreset = ref<string | null>('last24Hours')
 
-const today = () => formatDateToString(new Date())
+const dropdownStyle = computed(() => {
+  const rect = triggerRect.value
+  if (!rect) return {}
+
+  // Keep the fixed dropdown inside the viewport on narrow screens.
+  const left = Math.max(8, Math.min(rect.left, window.innerWidth - 336))
+  const style: Record<string, string> = {
+    position: 'fixed',
+    left: `${left}px`,
+    zIndex: '100000020'
+  }
+
+  if (dropdownPosition.value === 'top') {
+    style.bottom = `${Math.max(8, window.innerHeight - rect.top + 8)}px`
+  } else {
+    style.top = `${rect.bottom + 8}px`
+  }
+
+  return style
+})
+
+const today = () => {
+  // Use local timezone to avoid UTC timezone issues
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 // Tomorrow's date - used for max date to handle timezone differences
 // When user is in a timezone behind the server, "today" on server might be "tomorrow" locally
@@ -256,8 +296,44 @@ const onDateChange = () => {
   }
 }
 
+const updateTriggerRect = () => {
+  if (containerRef.value) {
+    triggerRect.value = containerRef.value.getBoundingClientRect()
+  }
+}
+
+const updateDropdownPosition = () => {
+  updateTriggerRect()
+  if (!dropdownRef.value || !triggerRect.value) return
+
+  const dropdownHeight = dropdownRef.value.offsetHeight || 320
+  const spaceBelow = window.innerHeight - triggerRect.value.bottom
+  const spaceAbove = triggerRect.value.top
+  dropdownPosition.value = spaceBelow < dropdownHeight && spaceAbove > dropdownHeight ? 'top' : 'bottom'
+}
+
+const handleViewportChange = () => {
+  if (!isOpen.value) return
+  updateDropdownPosition()
+}
+
+const close = () => {
+  if (!isOpen.value) return
+  isOpen.value = false
+  window.removeEventListener('scroll', handleViewportChange, true)
+  window.removeEventListener('resize', handleViewportChange)
+}
+
 const toggle = () => {
-  isOpen.value = !isOpen.value
+  if (!isOpen.value) {
+    isOpen.value = true
+    updateTriggerRect()
+    nextTick(updateDropdownPosition)
+    window.addEventListener('scroll', handleViewportChange, { capture: true, passive: true })
+    window.addEventListener('resize', handleViewportChange)
+  } else {
+    close()
+  }
 }
 
 const apply = () => {
@@ -268,18 +344,18 @@ const apply = () => {
     endDate: localEndDate.value,
     preset: activePreset.value
   })
-  isOpen.value = false
+  close()
 }
 
 const handleClickOutside = (event: MouseEvent) => {
-  if (containerRef.value && !containerRef.value.contains(event.target as Node)) {
-    isOpen.value = false
-  }
+  const target = event.target as Node
+  if (containerRef.value?.contains(target) || dropdownRef.value?.contains(target)) return
+  close()
 }
 
 const handleEscape = (event: KeyboardEvent) => {
   if (event.key === 'Escape' && isOpen.value) {
-    isOpen.value = false
+    close()
   }
 }
 
@@ -318,6 +394,8 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
   document.removeEventListener('keydown', handleEscape)
+  window.removeEventListener('scroll', handleViewportChange, true)
+  window.removeEventListener('resize', handleViewportChange)
 })
 </script>
 
@@ -351,13 +429,15 @@ onUnmounted(() => {
 }
 
 .date-picker-dropdown {
-  @apply absolute left-0 z-[100] mt-2;
+  @apply z-[100];
   @apply bg-white dark:bg-dark-800;
   @apply rounded-xl;
   @apply border border-gray-200 dark:border-dark-700;
   @apply shadow-lg shadow-black/10 dark:shadow-black/30;
   @apply overflow-hidden;
-  @apply min-w-[320px];
+  width: min(320px, calc(100vw - 16px));
+  max-height: min(420px, calc(100vh - 16px));
+  overflow-y: auto;
 }
 
 .date-picker-presets {

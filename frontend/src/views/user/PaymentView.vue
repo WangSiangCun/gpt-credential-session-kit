@@ -1,5 +1,5 @@
 <template>
-  <AppLayout>
+  <component :is="embedded ? 'div' : AppLayout">
     <div class="mx-auto max-w-4xl space-y-6">
       <div v-if="loading" class="flex items-center justify-center py-20">
         <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
@@ -33,12 +33,8 @@
         </template>
         <!-- Tab content (select phase) -->
         <template v-else>
-          <!-- Neither top-up nor subscriptions available (balance recharge disabled via API while subscriptions are off) -->
-          <div v-if="tabs.length === 0" class="card py-16 text-center">
-            <p class="text-gray-500 dark:text-gray-400">{{ t('payment.billingUnavailable') }}</p>
-          </div>
           <!-- Top-up Tab -->
-          <template v-else-if="activeTab === 'recharge'">
+          <template v-if="activeTab === 'recharge'">
             <!-- Recharge Account Card -->
             <div class="card p-5">
               <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
@@ -299,13 +295,13 @@
     <Teleport to="body">
       <Transition name="modal">
         <div v-if="showRenewalModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" @click.self="closeRenewalModal">
-          <div class="relative flex max-h-full w-full max-w-lg flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-dark-700 dark:bg-dark-900">
+          <div class="relative w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-dark-700 dark:bg-dark-900">
             <!-- Close button -->
             <button class="absolute right-4 top-4 rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-gray-200" @click="closeRenewalModal">
               <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
-            <h3 class="mb-4 shrink-0 text-lg font-semibold text-gray-900 dark:text-white">{{ t('payment.selectPlan') }}</h3>
-            <div class="min-h-0 space-y-4 overflow-y-auto">
+            <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{{ t('payment.selectPlan') }}</h3>
+            <div class="space-y-4">
               <SubscriptionPlanCard v-for="plan in renewalPlans" :key="plan.id" :plan="plan" :active-subscriptions="activeSubscriptions" @select="selectPlanFromModal" />
             </div>
           </div>
@@ -320,7 +316,7 @@
         </div>
       </Transition>
     </Teleport>
-  </AppLayout>
+  </component>
 </template>
 
 <script setup lang="ts">
@@ -329,12 +325,12 @@ import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import '@/styles/announcement-markdown.css'
+import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { usePaymentStore } from '@/stores/payment'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import { useAppStore } from '@/stores'
-import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import { paymentAPI } from '@/api/payment'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
 import { isMobileDevice } from '@/utils/device'
@@ -375,6 +371,13 @@ const authStore = useAuthStore()
 const paymentStore = usePaymentStore()
 const subscriptionStore = useSubscriptionStore()
 const appStore = useAppStore()
+
+const props = defineProps<{
+  embedded?: boolean
+  balanceOnly?: boolean
+}>()
+const embedded = computed(() => props.embedded === true)
+const balanceOnly = computed(() => props.balanceOnly === true)
 
 const user = computed(() => authStore.user)
 const activeSubscriptions = computed(() => subscriptionStore.activeSubscriptions)
@@ -612,22 +615,20 @@ const subscriptionEnabled = computed(() => resolveFeatureFlag(appStore.cachedPub
 
 const tabs = computed(() => {
   const result: { key: 'recharge' | 'subscription'; label: string }[] = []
+  if (balanceOnly.value) {
+    result.push({ key: 'recharge', label: t('payment.tabTopUp') })
+    return result
+  }
   if (!checkout.value.balance_disabled) result.push({ key: 'recharge', label: t('payment.tabTopUp') })
   if (subscriptionEnabled.value) result.push({ key: 'subscription', label: t('payment.tabSubscribe') })
   return result
 })
 
-// tab 列表随 checkout（balance_disabled）与订阅开关变化。当前 tab 不在列表里时收敛到第一个可用 tab，
-// 两个方向都覆盖：关闭订阅 → 回到充值；仅订阅站点重新打开订阅 → 进入订阅。列表为空时模板展示不可用提示。
-watch(tabs, (available) => {
-  if (available.some((tab) => tab.key === activeTab.value)) return
-  const leavingSubscription = activeTab.value === 'subscription'
-  activeTab.value = available[0]?.key ?? 'recharge'
-  if (leavingSubscription) selectedPlan.value = null
-})
-
 const visibleMethods = computed(() => getVisibleMethods(checkout.value.methods))
-const enabledMethods = computed(() => Object.keys(visibleMethods.value))
+const enabledMethods = computed(() => {
+  if (balanceOnly.value && checkout.value.balance_disabled) return []
+  return Object.keys(visibleMethods.value)
+})
 const validAmount = computed(() => amount.value ?? 0)
 const balanceRechargeMultiplier = computed(() => {
   const multiplier = checkout.value.balance_recharge_multiplier
@@ -1279,9 +1280,11 @@ onMounted(async () => {
       }
     }
     await resumeWechatPaymentFromQuery()
-    // balance_disabled → the tabs watcher above moves activeTab to the subscription tab (when enabled).
-    // Handle renewal navigation: ?tab=subscription&group=123 (ignored when subscriptions are disabled)
-    if (route.query.tab === 'subscription' && subscriptionEnabled.value) {
+    if (checkout.value.balance_disabled && !balanceOnly.value) {
+      activeTab.value = 'subscription'
+    }
+    // Handle renewal navigation: ?tab=subscription&group=123
+    if (!balanceOnly.value && subscriptionEnabled.value && route.query.tab === 'subscription') {
       activeTab.value = 'subscription'
       if (route.query.group) {
         const groupId = Number(route.query.group)
@@ -1296,9 +1299,7 @@ onMounted(async () => {
     }
   } catch (err: unknown) { appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error'))) }
   finally { loading.value = false }
-  // Fetch active subscriptions (uses cache, non-blocking); skipped when the subscription feature is off
-  if (subscriptionEnabled.value) {
-    subscriptionStore.fetchActiveSubscriptions().catch(() => {})
-  }
+  // Fetch active subscriptions (uses cache, non-blocking)
+  if (subscriptionEnabled.value) subscriptionStore.fetchActiveSubscriptions().catch(() => {})
 })
 </script>

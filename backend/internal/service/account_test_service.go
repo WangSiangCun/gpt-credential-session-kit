@@ -76,6 +76,38 @@ type AccountTestOptions struct {
 	AudioDataURL string
 }
 
+type accountTestProxyURLContextKey struct{}
+
+// WithAccountTestProxyURL overrides the account proxy for one connectivity test.
+// The override is intentionally context-scoped so normal traffic is unchanged.
+func WithAccountTestProxyURL(ctx context.Context, proxyURL string) context.Context {
+	return context.WithValue(ctx, accountTestProxyURLContextKey{}, strings.TrimSpace(proxyURL))
+}
+
+func accountTestProxyURL(ctx context.Context, account *Account) string {
+	if override, _ := ctx.Value(accountTestProxyURLContextKey{}).(string); strings.TrimSpace(override) != "" {
+		return strings.TrimSpace(override)
+	}
+	if account != nil && account.ProxyID != nil && account.Proxy != nil {
+		return account.Proxy.URL()
+	}
+	return ""
+}
+
+type accountTestReasoningEffortContextKey struct{}
+
+// WithAccountTestReasoningEffort carries an optional Responses/Chat Completions
+// reasoning effort into the existing account-test path without changing its
+// public handler signature.
+func WithAccountTestReasoningEffort(ctx context.Context, effort string) context.Context {
+	return context.WithValue(ctx, accountTestReasoningEffortContextKey{}, strings.TrimSpace(effort))
+}
+
+func accountTestReasoningEffort(ctx context.Context) string {
+	effort, _ := ctx.Value(accountTestReasoningEffortContextKey{}).(string)
+	return effort
+}
+
 func firstAccountTestOptions(opts []AccountTestOptions) AccountTestOptions {
 	if len(opts) == 0 {
 		return AccountTestOptions{}
@@ -326,12 +358,23 @@ func generateSessionString() (string, error) {
 }
 
 // createTestPayload creates a Claude Code style test request payload
-func createTestPayload(modelID string) (map[string]any, error) {
+func createTestPayload(modelID string, prompts ...string) (map[string]any, error) {
+	prompt := ""
+	if len(prompts) > 0 {
+		prompt = prompts[0]
+	}
 	sessionID, err := generateSessionString()
 	if err != nil {
 		return nil, err
 	}
 
+	if strings.TrimSpace(prompt) == "" {
+		prompt = "hi"
+	}
+	maxTokens := 1024
+	if prompt != "hi" {
+		maxTokens = 8192
+	}
 	return map[string]any{
 		"model": modelID,
 		"messages": []map[string]any{
@@ -340,7 +383,7 @@ func createTestPayload(modelID string) (map[string]any, error) {
 				"content": []map[string]any{
 					{
 						"type": "text",
-						"text": "hi",
+						"text": prompt,
 						"cache_control": map[string]string{
 							"type": "ephemeral",
 						},
@@ -360,7 +403,9 @@ func createTestPayload(modelID string) (map[string]any, error) {
 		"metadata": map[string]string{
 			"user_id": sessionID,
 		},
-		"max_tokens":  1024,
+		// SVG probes are substantially longer than the normal connectivity "hi"
+		// probe; keep enough room for one complete document so it is not truncated.
+		"max_tokens":  maxTokens,
 		"temperature": 1,
 		"stream":      true,
 	}, nil
@@ -465,7 +510,7 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 		return s.testTypeSafeAccountConnection(c, account, prompt)
 	}
 
-	return s.testClaudeAccountConnection(c, account, modelID)
+	return s.testClaudeAccountConnection(c, account, modelID, prompt)
 }
 
 func (s *AccountTestService) testPrismBrowserConnection(c *gin.Context, account *Account, modelID, prompt string) error {
@@ -581,7 +626,7 @@ func (s *AccountTestService) testCNProviderChatCompletionsConnection(c *gin.Cont
 }
 
 // testClaudeAccountConnection tests an Anthropic Claude account's connection
-func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account *Account, modelID string) error {
+func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account *Account, modelID string, prompt string) error {
 	ctx := c.Request.Context()
 
 	// Determine the model to use
@@ -640,7 +685,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	c.Writer.Flush()
 
 	// Create Claude Code style payload (same for all account types)
-	payload, err := createTestPayload(testModelID)
+	payload, err := createTestPayload(testModelID, prompt)
 	if options, ok := pelicanTestOptionsFromContext(ctx); ok {
 		payload, err = createPelicanClaudePayload(testModelID, options.prompt, options.reasoningEffort)
 	}
@@ -681,10 +726,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	account.ApplyHeaderOverrides(req.Header)
 
 	// Get proxy URL
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := accountTestProxyURL(c.Request.Context(), account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
@@ -721,7 +763,7 @@ func (s *AccountTestService) testClaudeVertexServiceAccountConnection(c *gin.Con
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
 	c.Writer.Flush()
 
-	payload, err := createTestPayload(testModelID)
+	payload, err := createTestPayload(testModelID, "")
 	if options, ok := pelicanTestOptionsFromContext(ctx); ok {
 		payload, err = createPelicanClaudePayload(testModelID, options.prompt, options.reasoningEffort)
 	}
@@ -756,10 +798,7 @@ func (s *AccountTestService) testClaudeVertexServiceAccountConnection(c *gin.Con
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := accountTestProxyURL(c.Request.Context(), account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
@@ -842,10 +881,7 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 		}
 	}
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := accountTestProxyURL(c.Request.Context(), account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, nil)
 	if err != nil {
@@ -1004,7 +1040,10 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	if isOAuth {
 		upstreamTestModelID = normalizeOpenAIModelForUpstream(credentialAccount, testModelID)
 	}
-	payload := createOpenAITestPayload(upstreamTestModelID, isOAuth)
+	payload := createOpenAITestPayload(upstreamTestModelID, isOAuth, prompt)
+	if effort := accountTestReasoningEffort(ctx); effort != "" {
+		payload["reasoning"] = map[string]any{"effort": effort}
+	}
 	if options, ok := pelicanTestOptionsFromContext(ctx); ok {
 		payload = createPelicanOpenAIPayload(upstreamTestModelID, isOAuth, options.prompt, options.reasoningEffort)
 	}
@@ -1064,10 +1103,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	credentialAccount.ApplyHeaderOverrides(req.Header)
 
 	// Get proxy URL
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := accountTestProxyURL(c.Request.Context(), account)
 
 	resp, err := s.doOpenAIAccountTestUpstream(req, proxyURL, account, true)
 	if err != nil {
@@ -1250,7 +1286,7 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 		if mapped := strings.TrimSpace(account.GetMappedModel(testModelID)); mapped != "" {
 			testModelID = mapped
 		}
-		return s.testGrokResponsesConnection(c, ctx, account, authToken, testModelID)
+		return s.testGrokResponsesConnection(c, ctx, account, authToken, testModelID, prompt)
 	}
 
 	// mode == default: infer from model family (legacy UI / API clients).
@@ -1268,7 +1304,7 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 	case isGrokVideoGenerationModel(testModelID):
 		return s.testGrokVideoGeneration(c, ctx, account, authToken, testModelID, resolveGrokVideoPrompt(prompt), opts)
 	default:
-		return s.testGrokResponsesConnection(c, ctx, account, authToken, testModelID)
+		return s.testGrokResponsesConnection(c, ctx, account, authToken, testModelID, prompt)
 	}
 }
 
@@ -1332,11 +1368,8 @@ func (s *AccountTestService) grokTestAccessToken(ctx context.Context, account *A
 	}
 }
 
-func (s *AccountTestService) grokTestProxyURL(account *Account) string {
-	if account.ProxyID != nil && account.Proxy != nil {
-		return account.Proxy.URL()
-	}
-	return ""
+func (s *AccountTestService) grokTestProxyURL(c *gin.Context, account *Account) string {
+	return accountTestProxyURL(c.Request.Context(), account)
 }
 
 func (s *AccountTestService) prepareGrokTestSSE(c *gin.Context) {
@@ -1488,7 +1521,7 @@ func (s *AccountTestService) applyGrokTestForbiddenPolicy(ctx context.Context, a
 	return true
 }
 
-func (s *AccountTestService) testGrokResponsesConnection(c *gin.Context, ctx context.Context, account *Account, authToken, testModelID string) error {
+func (s *AccountTestService) testGrokResponsesConnection(c *gin.Context, ctx context.Context, account *Account, authToken, testModelID, prompt string) error {
 	apiURL, err := buildGrokResponsesURL(account, s.cfg, s.settingService)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid Grok base URL: %s", err.Error()))
@@ -1496,7 +1529,7 @@ func (s *AccountTestService) testGrokResponsesConnection(c *gin.Context, ctx con
 
 	s.prepareGrokTestSSE(c)
 
-	payloadBytes, err := buildGrokQuotaProbeBody(testModelID)
+	payloadBytes, err := buildGrokResponsesTestBody(testModelID, prompt)
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Failed to create Grok test payload")
 	}
@@ -1511,7 +1544,7 @@ func (s *AccountTestService) testGrokResponsesConnection(c *gin.Context, ctx con
 	}
 	s.applyGrokTestRequestHeaders(req, account, authToken, "application/json, text/event-stream")
 
-	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(c, account), account.ID, account.Concurrency)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok Responses API request failed: %s", err.Error()))
 	}
@@ -1599,7 +1632,7 @@ func (s *AccountTestService) testGrokImageGeneration(c *gin.Context, ctx context
 			s.applyGrokTestRequestHeaders(req, account, authToken, "application/json")
 			req.ContentLength = int64(len(payloadBytes))
 		}
-		resp, doErr = s.httpUpstream.Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+		resp, doErr = s.httpUpstream.Do(req, s.grokTestProxyURL(c, account), account.ID, account.Concurrency)
 		if doErr == nil {
 			break
 		}
@@ -1690,7 +1723,7 @@ func (s *AccountTestService) testGrokVideoGeneration(c *gin.Context, ctx context
 	}
 	s.applyGrokTestRequestHeaders(req, account, authToken, "application/json")
 
-	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(c, account), account.ID, account.Concurrency)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok video request failed: %s", err.Error()))
 	}
@@ -1731,7 +1764,7 @@ func (s *AccountTestService) testGrokVideoGeneration(c *gin.Context, ctx context
 			return s.sendErrorAndEnd(c, "Failed to create Grok video status request")
 		}
 		s.applyGrokTestRequestHeaders(statusReq, account, authToken, "application/json")
-		statusResp, err := s.httpUpstream.Do(statusReq, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+		statusResp, err := s.httpUpstream.Do(statusReq, s.grokTestProxyURL(c, account), account.ID, account.Concurrency)
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Grok video status failed: %s", err.Error()))
 		}
@@ -1788,7 +1821,7 @@ func (s *AccountTestService) emitGrokVideoResult(c *gin.Context, ctx context.Con
 		return s.sendErrorAndEnd(c, "Failed to create Grok video content request")
 	}
 	s.applyGrokTestRequestHeaders(req, account, authToken, "video/*, application/octet-stream, */*")
-	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(c, account), account.ID, account.Concurrency)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok video content download failed: %s", err.Error()))
 	}
@@ -1860,7 +1893,7 @@ User query:
 	}
 	s.applyGrokTestRequestHeaders(req, account, authToken, "application/json")
 
-	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(c, account), account.ID, account.Concurrency)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("standalone web_search probe failed: %s", err.Error()))
 	}
@@ -1941,7 +1974,7 @@ func (s *AccountTestService) testGrokTTS(c *gin.Context, ctx context.Context, ac
 			return s.sendErrorAndEnd(c, "Failed to create Grok TTS request")
 		}
 		s.applyGrokTestRequestHeaders(req, account, authToken, "audio/*, application/json, */*")
-		resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+		resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(c, account), account.ID, account.Concurrency)
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Grok TTS failed: %s", err.Error()))
 		}
@@ -2032,7 +2065,7 @@ func (s *AccountTestService) testGrokSTT(c *gin.Context, ctx context.Context, ac
 	}
 	account.ApplyHeaderOverrides(req.Header)
 
-	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
+	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(c, account), account.ID, account.Concurrency)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok STT failed: %s", err.Error()))
 	}
@@ -2113,7 +2146,7 @@ func (s *AccountTestService) testGrokRealtime(c *gin.Context, ctx context.Contex
 	dialCtx, cancel := context.WithTimeout(ctx, grokRealtimeProbeTimeout)
 	defer cancel()
 
-	conn, status, _, dialErr := dialer.Dial(dialCtx, wsURL, headers, s.grokTestProxyURL(account))
+	conn, status, _, dialErr := dialer.Dial(dialCtx, wsURL, headers, s.grokTestProxyURL(c, account))
 	if dialErr != nil {
 		detail := dialErr.Error()
 		var hs *openAIWSHandshakeError
@@ -2382,6 +2415,9 @@ func (s *AccountTestService) testOpenAIChatCompletionsConnection(
 	if options, ok := pelicanTestOptionsFromContext(ctx); ok && options.reasoningEffort != "" {
 		payload["reasoning_effort"] = options.reasoningEffort
 	}
+	if effort := accountTestReasoningEffort(ctx); effort != "" {
+		payload["reasoning_effort"] = effort
+	}
 	payloadBytes, _ := json.Marshal(payload)
 
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
@@ -2405,10 +2441,7 @@ func (s *AccountTestService) testOpenAIChatCompletionsConnection(
 	account.ApplyHeaderOverrides(req.Header)
 	applyOpenCodeSessionHeader(c, account, apiURL, req.Header, payloadBytes)
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := accountTestProxyURL(c.Request.Context(), account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
@@ -2542,10 +2575,7 @@ func (s *AccountTestService) testOpenAICompactConnection(c *gin.Context, account
 	applyOpenAIAPIKeyIdentityHeaders(req.Header, credentialAccount, credentialAccount.GetOpenAIUserAgent())
 	account.ApplyHeaderOverrides(req.Header)
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := accountTestProxyURL(c.Request.Context(), account)
 
 	resp, err := s.doOpenAIAccountTestUpstream(req, proxyURL, account, true)
 	if err != nil {
@@ -2690,10 +2720,7 @@ func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
 
 	// Get proxy and execute request
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := accountTestProxyURL(c.Request.Context(), account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
@@ -2717,7 +2744,7 @@ func (s *AccountTestService) routeAntigravityTest(c *gin.Context, account *Accou
 		if strings.HasPrefix(modelID, "gemini-") {
 			return s.testGeminiAccountConnection(c, account, modelID, prompt)
 		}
-		return s.testClaudeAccountConnection(c, account, modelID)
+		return s.testClaudeAccountConnection(c, account, modelID, "")
 	}
 	return s.testAntigravityAccountConnection(c, account, modelID)
 }
@@ -3029,7 +3056,14 @@ func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader)
 }
 
 // createOpenAITestPayload creates a test payload for OpenAI Responses API
-func createOpenAITestPayload(modelID string, isOAuth bool) map[string]any {
+func createOpenAITestPayload(modelID string, isOAuth bool, prompts ...string) map[string]any {
+	prompt := ""
+	if len(prompts) > 0 {
+		prompt = prompts[0]
+	}
+	if strings.TrimSpace(prompt) == "" {
+		prompt = "hi"
+	}
 	payload := map[string]any{
 		"model": modelID,
 		"input": []map[string]any{
@@ -3038,7 +3072,7 @@ func createOpenAITestPayload(modelID string, isOAuth bool) map[string]any {
 				"content": []map[string]any{
 					{
 						"type": "input_text",
-						"text": "hi",
+						"text": prompt,
 					},
 				},
 			},
@@ -3346,10 +3380,7 @@ func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.C
 	applyOpenAIAPIKeyIdentityHeaders(req.Header, account, account.GetOpenAIUserAgent())
 	account.ApplyHeaderOverrides(req.Header)
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := accountTestProxyURL(c.Request.Context(), account)
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
@@ -3490,10 +3521,7 @@ func (s *AccountTestService) testOpenAIImageOAuth(c *gin.Context, ctx context.Co
 	// 与该账号真实出站的身份不是同一个（issue #3901 的配对不变式由收口保证）。
 	enforceCodexIdentityHeadersWithUA(req.Header, credentialAccount.GetOpenAIUserAgent())
 
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := accountTestProxyURL(c.Request.Context(), account)
 	resp, err := s.doOpenAIAccountTestUpstream(req, proxyURL, account, false)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Image upstream request failed: %s", err.Error()))

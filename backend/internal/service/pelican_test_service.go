@@ -125,7 +125,7 @@ func pelicanClaudeStopFailure(stopReason, category string) string {
 }
 
 func createPelicanOpenAIPayload(modelID string, isOAuth bool, prompt, reasoningEffort string) map[string]any {
-	payload := createOpenAITestPayload(modelID, isOAuth)
+	payload := createOpenAITestPayload(modelID, isOAuth, prompt)
 	input, ok := payload["input"].([]map[string]any)
 	if ok && len(input) > 0 {
 		content, ok := input[0]["content"].([]map[string]any)

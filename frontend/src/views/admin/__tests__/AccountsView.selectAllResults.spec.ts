@@ -9,6 +9,7 @@ const {
   listAccounts,
   listWithEtag,
   batchRefresh,
+  batchDelete,
   getBatchTodayStats,
   getUpstreamBillingProbeSettings,
   getAllProxies,
@@ -18,6 +19,7 @@ const {
   listAccounts: vi.fn(),
   listWithEtag: vi.fn(),
   batchRefresh: vi.fn(),
+  batchDelete: vi.fn(),
   getBatchTodayStats: vi.fn(),
   getUpstreamBillingProbeSettings: vi.fn(),
   getAllProxies: vi.fn(),
@@ -33,7 +35,7 @@ vi.mock('@/api/admin', () => ({
       listWithEtag,
       getBatchTodayStats,
       getUpstreamBillingProbeSettings,
-      batchDelete: vi.fn(),
+      batchDelete,
       batchClearError: vi.fn(),
       batchRefresh,
       bulkUpdate: vi.fn()
@@ -84,7 +86,7 @@ const makeAccounts = (count: number) => Array.from({ length: count }, (_, index)
 
 const AccountBulkActionsBarStub = {
   props: ['selectedIds', 'totalResults', 'selectingAll', 'allResultsSelected'],
-  emits: ['select-all-results', 'select-page', 'clear', 'refresh-token'],
+  emits: ['select-all-results', 'select-page', 'clear', 'refresh-token', 'delete'],
   template: `
     <div>
       <span data-test="selected-count">{{ selectedIds.length }}</span>
@@ -94,6 +96,7 @@ const AccountBulkActionsBarStub = {
       <button data-test="select-all-results" @click="$emit('select-all-results')">select all</button>
       <button data-test="clear" @click="$emit('clear')">clear</button>
       <button data-test="refresh-token" @click="$emit('refresh-token')">refresh token</button>
+      <button data-test="delete-accounts" @click="$emit('delete')">delete</button>
     </div>
   `
 }
@@ -149,6 +152,7 @@ describe('admin AccountsView select all filtered results', () => {
     listAccounts.mockReset()
     listWithEtag.mockReset()
     batchRefresh.mockReset()
+    batchDelete.mockReset()
     getBatchTodayStats.mockReset()
     getUpstreamBillingProbeSettings.mockReset()
     getAllProxies.mockReset()
@@ -169,6 +173,26 @@ describe('admin AccountsView select all filtered results', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+  })
+
+  it.each([
+    { error: { status: 404, message: 'Request failed with status code 404' }, expected: 'Request failed with status code 404' },
+    { error: {}, expected: 'common.error' },
+  ])('shows a readable batch deletion error and preserves selection', async ({ error, expected }) => {
+    listAccounts.mockResolvedValue({ items: makeAccounts(3), total: 3, page: 1, page_size: 20, pages: 1 })
+    batchDelete.mockRejectedValue(error)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-test="select-page"]').trigger('click')
+    await wrapper.get('[data-test="delete-accounts"]').trigger('click')
+    await flushPromises()
+
+    expect(batchDelete).toHaveBeenCalledWith([1, 2, 3])
+    expect(showError).toHaveBeenCalledWith(expected)
+    expect(wrapper.getComponent(AccountBulkActionsBarStub).props('selectedIds')).toEqual([1, 2, 3])
+    wrapper.unmount()
   })
 
   it.each([

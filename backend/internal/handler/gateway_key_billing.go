@@ -27,6 +27,8 @@ type keyBillingInfoResponse struct {
 	AppliedPeakMultiplier   *float64  `json:"applied_peak_multiplier,omitempty"`
 	EffectiveRateMultiplier float64   `json:"effective_rate_multiplier"`
 	Timezone                *string   `json:"timezone,omitempty"`
+	BalanceRemaining        float64   `json:"balance_remaining"`
+	BalanceCurrency         string    `json:"balance_currency"`
 	ObservedAt              time.Time `json:"observed_at"`
 }
 
@@ -84,6 +86,10 @@ func buildKeyBillingInfo(apiKey *service.APIKey, resolvedRate float64, now time.
 		userRate = &resolvedRate
 	}
 	appliedPeak := apiKey.Group.PeakMultiplierAt(now)
+	balanceRemaining := 0.0
+	if apiKey.User != nil {
+		balanceRemaining = apiKey.User.Balance
+	}
 
 	response := keyBillingInfoResponse{
 		Object:                  "sub2api.key_billing",
@@ -94,6 +100,8 @@ func buildKeyBillingInfo(apiKey *service.APIKey, resolvedRate float64, now time.
 		ResolvedRateMultiplier:  resolvedRate,
 		PeakRateEnabled:         apiKey.Group.PeakRateEnabled,
 		EffectiveRateMultiplier: resolvedRate * appliedPeak,
+		BalanceRemaining:        balanceRemaining,
+		BalanceCurrency:         "USD",
 		ObservedAt:              now.UTC(),
 	}
 	if apiKey.Group.PeakRateEnabled {

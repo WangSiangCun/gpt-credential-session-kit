@@ -312,6 +312,11 @@ export default {
   // Payment System
   payment: {
     title: '充值/订阅',
+    sourceTabs: {
+      label: '支付来源',
+      native: '平台直充',
+      cloudcat: '云猫寄售',
+    },
     amountLabel: '充值金额',
     paymentAmount: '支付金额',
     creditedBalance: '到账余额',

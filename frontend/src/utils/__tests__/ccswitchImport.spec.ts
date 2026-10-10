@@ -3,7 +3,8 @@ import {
   CC_SWITCH_USAGE_SCRIPT,
   GROK_CC_SWITCH_MODEL,
   OPENAI_CC_SWITCH_CODEX_MODEL,
-  buildCcSwitchImportDeeplink
+  buildCcSwitchImportDeeplink,
+  normalizeCcSwitchBaseUrl
 } from '@/utils/ccswitchImport'
 import type { GroupPlatform } from '@/types'
 
@@ -28,12 +29,51 @@ describe('ccswitchImport utils', () => {
     usageScript: 'return true'
   }
 
+  it('keeps the configured endpoint for OpenAI imports', () => {
+    const params = paramsFromDeeplink(
+      buildCcSwitchImportDeeplink({
+        ...baseInput,
+        platform: 'openai',
+        clientType: 'claude'
+      })
+    )
+
+    expect(params.get('resource')).toBe('provider')
+    expect(params.get('app')).toBe('codex')
+    expect(params.get('endpoint')).toBe(baseInput.baseUrl)
+    expect(params.get('model')).toBe(OPENAI_CC_SWITCH_CODEX_MODEL)
+    expect(atob(params.get('usageScript') || '')).toBe(baseInput.usageScript)
+  })
+
+  it.each([
+    ['https://poolai.chat', 'https://poolai.chat'],
+    ['https://poolai.chat/', 'https://poolai.chat'],
+    ['https://poolai.chat/v1', 'https://poolai.chat'],
+    ['https://poolai.chat/v1/', 'https://poolai.chat'],
+    ['https://relay.example.com/sub2api/v1', 'https://relay.example.com/sub2api']
+  ])('removes only a trailing /v1 from CCS provider endpoints: %s', (baseUrl, normalized) => {
+    expect(normalizeCcSwitchBaseUrl(baseUrl)).toBe(normalized)
+  })
+
+  it('does not import /v1 for an OpenAI CC Switch endpoint', () => {
+    const params = paramsFromDeeplink(
+      buildCcSwitchImportDeeplink({
+        ...baseInput,
+        baseUrl: 'https://poolai.chat/v1',
+        platform: 'openai',
+        clientType: 'claude'
+      })
+    )
+
+    expect(params.get('endpoint')).toBe('https://poolai.chat')
+  })
+
   it.each([
     ['https://api.example.com', 'https://api.example.com'],
     ['https://api.example.com/', 'https://api.example.com'],
-    ['https://api.example.com/v1', 'https://api.example.com/v1'],
-    ['https://api.example.com/v1/', 'https://api.example.com/v1']
-  ])('keeps Codex imports on the configured endpoint for base URL %s', (baseUrl, endpoint) => {
+    ['https://api.example.com/v1', 'https://api.example.com'],
+    ['https://api.example.com/v1/', 'https://api.example.com']
+  ])('normalizes the OpenAI endpoint for base URL %s', (baseUrl, endpoint) => {
     const params = paramsFromDeeplink(
       buildCcSwitchImportDeeplink({
         ...baseInput,
@@ -51,11 +91,11 @@ describe('ccswitchImport utils', () => {
   })
 
   it.each([
-    'https://api.example.com',
-    'https://api.example.com/',
-    'https://api.example.com/v1',
-    'https://api.example.com/v1/'
-  ])('imports Grok Build with one /v1 suffix for base URL %s', (baseUrl) => {
+    ['https://api.example.com', 'https://api.example.com'],
+    ['https://api.example.com/', 'https://api.example.com'],
+    ['https://api.example.com/v1', 'https://api.example.com'],
+    ['https://api.example.com/v1/', 'https://api.example.com']
+  ])('normalizes the Grok Build endpoint for base URL %s', (baseUrl, endpoint) => {
     const params = paramsFromDeeplink(
       buildCcSwitchImportDeeplink({
         ...baseInput,
@@ -66,7 +106,7 @@ describe('ccswitchImport utils', () => {
     )
 
     expect(params.get('app')).toBe('grokbuild')
-    expect(params.get('endpoint')).toBe('https://api.example.com/v1')
+    expect(params.get('endpoint')).toBe(endpoint)
     expect(params.get('model')).toBe(GROK_CC_SWITCH_MODEL)
   })
 

@@ -151,6 +151,8 @@ func TestGatewayRoutesKeyBillingInfoEndToEnd(t *testing.T) {
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 		require.Equal(t, "sub2api.key_billing", body["object"])
 		require.Equal(t, 0.75, body["effective_rate_multiplier"])
+		require.Equal(t, 10.0, body["balance_remaining"])
+		require.Equal(t, "USD", body["balance_currency"])
 		require.Equal(t, 1, rateRepo.lookupCalls)
 	})
 

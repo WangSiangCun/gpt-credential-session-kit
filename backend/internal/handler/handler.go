@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/Wei-Shaw/sub2api/internal/accountmarket"
 	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
 	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 )
@@ -50,11 +51,15 @@ type AdminHandlers struct {
 	Affiliate              *admin.AffiliateHandler
 	Compliance             *admin.ComplianceHandler
 	AuditLog               *admin.AuditLogHandler
+	Lottery                *admin.LotteryHandler
+	IntelligenceTest       *admin.IntelligenceTestHandler
 }
 
 // Handlers contains all HTTP handlers
 type Handlers struct {
+	AccountMarket    *accountmarket.Handler
 	Auth             *AuthHandler
+	ProviderPricing  *ProviderPricingHandler
 	User             *UserHandler
 	APIKey           *APIKeyHandler
 	Usage            *UsageHandler
@@ -78,6 +83,7 @@ type Handlers struct {
 	ModelPlaza       *ModelPlazaHandler
 	AsyncImage       *AsyncImageHandler
 	BatchImage       *BatchImageHandler
+	Lottery          *LotteryHandler
 }
 
 // BuildInfo contains build-time information

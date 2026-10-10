@@ -90,6 +90,49 @@ func (s *RedeemCodeRepoSuite) TestCreateBatch() {
 	s.Require().Equal(float64(20), got2.Value)
 }
 
+func (s *RedeemCodeRepoSuite) TestRestrictedBatchClaimAllowsOnlyOneCodePerUser() {
+	batchID := "0123456789abcdef0123456789abcdef"
+	code := &service.RedeemCode{
+		Code:          "BATCH-RESTRICTED",
+		Type:          service.RedeemTypeBalance,
+		Value:         10,
+		Status:        service.StatusUnused,
+		BatchID:       &batchID,
+		BatchUserOnce: true,
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, code))
+
+	stored, err := s.repo.GetByID(s.ctx, code.ID)
+	s.Require().NoError(err)
+	s.Require().Equal(&batchID, stored.BatchID)
+	s.Require().True(stored.BatchUserOnce)
+
+	s.Require().NoError(s.repo.ClaimBatchUse(s.ctx, batchID, 1001, code.ID))
+	err = s.repo.ClaimBatchUse(s.ctx, batchID, 1001, code.ID+1)
+	s.Require().ErrorIs(err, service.ErrRedeemBatchAlreadyUsed)
+	s.Require().NoError(s.repo.ClaimBatchUse(s.ctx, batchID, 1002, code.ID+1))
+}
+
+func (s *RedeemCodeRepoSuite) TestGlobalClaimAllowsOnlyOneLimitedCodePerUser() {
+	code := &service.RedeemCode{
+		Code:           "GLOBAL-RESTRICTED",
+		Type:           service.RedeemTypeBalance,
+		Value:          10,
+		Status:         service.StatusUnused,
+		GlobalUserOnce: true,
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, code))
+
+	stored, err := s.repo.GetByID(s.ctx, code.ID)
+	s.Require().NoError(err)
+	s.Require().True(stored.GlobalUserOnce)
+
+	s.Require().NoError(s.repo.ClaimGlobalUse(s.ctx, 1001, code.ID))
+	err = s.repo.ClaimGlobalUse(s.ctx, 1001, code.ID+1)
+	s.Require().ErrorIs(err, service.ErrRedeemGlobalAlreadyUsed)
+	s.Require().NoError(s.repo.ClaimGlobalUse(s.ctx, 1002, code.ID+1))
+}
+
 func (s *RedeemCodeRepoSuite) TestGetByID_NotFound() {
 	_, err := s.repo.GetByID(s.ctx, 999999)
 	s.Require().Error(err, "expected error for non-existent ID")

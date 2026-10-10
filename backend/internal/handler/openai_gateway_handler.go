@@ -1100,7 +1100,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		if service.GetOpsCyberPolicy(c) != nil {
 			cyberBlockBodyHTTP = sessionHashBody
 		}
-		h.recordCyberPolicyIfMarked(c, apiKey, account, subscription, reqModel, err != nil, cyberBlockBodyHTTP, clientRequestedUsageFields(c, channelMapping, reqModel, ""), service.HashUsageRequestPayload(body))
+		h.recordCyberPolicyIfMarked(c, apiKey, account, subscription, reqModel, err != nil, cyberBlockBodyHTTP, clientRequestedUsageFields(c, channelMapping, reqModel, ""), service.HashUsageRequestPayload(body), attemptBody)
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
 		upstreamLatencyMs, _ := getContextInt64(c, service.OpsUpstreamLatencyMsKey)
 		responseLatencyMs := forwardDurationMs
@@ -4977,11 +4977,11 @@ func (h *OpenAIGatewayHandler) enqueueCyberSessionIdentityRejectedOpsEntry(c *gi
 // 并在 forward 返回错误时写一条 tokens=0 用量行。标记由 gateway 服务层在透传 cyber 后设置；
 // 当前请求已发给用户，本方法只做事后记录，不影响响应。forwardErrored 为 true 时才写用量行，
 // 避免与正常 RecordUsage(forward 成功路径)重复。每请求至多记录一次。
-func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey *service.APIKey, account *service.Account, subscription *service.UserSubscription, model string, forwardErrored bool, cyberBlockBody []byte, channelFields service.ChannelUsageFields, requestPayloadHash string) {
-	h.recordCyberPolicyIfMarkedWithIdentity(c, apiKey, account, subscription, model, forwardErrored, cyberBlockBody, channelFields, requestPayloadHash, nil)
+func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey *service.APIKey, account *service.Account, subscription *service.UserSubscription, model string, forwardErrored bool, cyberBlockBody []byte, channelFields service.ChannelUsageFields, requestPayloadHash string, forensicBodies ...[]byte) {
+	h.recordCyberPolicyIfMarkedWithIdentity(c, apiKey, account, subscription, model, forwardErrored, cyberBlockBody, channelFields, requestPayloadHash, nil, forensicBodies...)
 }
 
-func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarkedWithIdentity(c *gin.Context, apiKey *service.APIKey, account *service.Account, subscription *service.UserSubscription, model string, forwardErrored bool, cyberBlockBody []byte, channelFields service.ChannelUsageFields, requestPayloadHash string, identityOverride *service.CyberSessionIdentityResolution) {
+func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarkedWithIdentity(c *gin.Context, apiKey *service.APIKey, account *service.Account, subscription *service.UserSubscription, model string, forwardErrored bool, cyberBlockBody []byte, channelFields service.ChannelUsageFields, requestPayloadHash string, identityOverride *service.CyberSessionIdentityResolution, forensicBodies ...[]byte) {
 	mark := service.GetOpsCyberPolicy(c)
 	if mark == nil {
 		return
@@ -4994,7 +4994,7 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarkedWithIdentity(c *gin.Cont
 
 	requestID := c.Writer.Header().Get("X-Request-Id")
 	var userID, apiKeyID int64
-	var userEmail, apiKeyName, groupName string
+	var username, userEmail, apiKeyName, groupName string
 	var groupID *int64
 	if apiKey != nil {
 		apiKeyID = apiKey.ID
@@ -5002,6 +5002,7 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarkedWithIdentity(c *gin.Cont
 		groupID = apiKey.GroupID
 		if apiKey.User != nil {
 			userID = apiKey.User.ID
+			username = apiKey.User.Username
 			userEmail = apiKey.User.Email
 		}
 		if apiKey.Group != nil {
@@ -5011,8 +5012,11 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarkedWithIdentity(c *gin.Cont
 	inboundEndpoint := GetInboundEndpoint(c)
 	upstreamEndpoint := ""
 	var accountID int64
+	var accountName, upstreamBaseURL string
 	if account != nil {
 		accountID = account.ID
+		accountName = account.Name
+		upstreamBaseURL = account.GetOpenAIBaseURL()
 		upstreamEndpoint = resolveOpenAIUpstreamEndpoint(c, account, nil)
 	}
 	stream := false
@@ -5024,6 +5028,7 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarkedWithIdentity(c *gin.Cont
 	cmSvc := h.contentModerationService
 	gwSvc := h.gatewayService
 	opsSvc := h.opsService
+	auditCoordinator := h.securityAuditCoordinator
 	apiKeySvc := h.apiKeyService
 	requestPath := ""
 	if c.Request != nil && c.Request.URL != nil {
@@ -5034,6 +5039,26 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarkedWithIdentity(c *gin.Cont
 		requestCtx = c.Request.Context()
 	}
 	platform := resolveOpsPlatform(requestCtx, apiKey, guessPlatformFromPath(requestPath))
+	var forensicBody []byte
+	if len(forensicBodies) > 0 {
+		forensicBody = forensicBodies[0]
+	}
+	responseID := strings.TrimSpace(gjson.Get(mark.Body, "response.id").String())
+	if responseID == "" {
+		responseID = strings.TrimSpace(gjson.Get(mark.Body, "id").String())
+	}
+	sequenceNumber := gjson.Get(mark.Body, "sequence_number").Int()
+	forensicRequest := securityaudit.Request{
+		RequestID: requestID, UserID: userID, Username: username, UserEmail: userEmail,
+		APIKeyID: apiKeyID, APIKeyName: apiKeyName, GroupID: groupID, GroupName: groupName,
+		Provider: platform, Endpoint: inboundEndpoint, Protocol: "openai_responses", Model: model,
+		Body: forensicBody, Stage: "post_upstream",
+	}
+	forensicMetadata := securityaudit.CyberPolicyMetadata{
+		AccountID: accountID, AccountName: accountName, UpstreamBaseURL: upstreamBaseURL,
+		UpstreamStatus: mark.UpstreamStatus, UpstreamMessage: mark.Message,
+		ResponseID: responseID, SequenceNumber: sequenceNumber,
+	}
 	var clientRequestID, userAgent, clientIPStr string
 	if c.Request != nil {
 		clientRequestID, _ = c.Request.Context().Value(ctxkey.ClientRequestID).(string)
@@ -5083,6 +5108,11 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarkedWithIdentity(c *gin.Cont
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
+		if auditCoordinator != nil && len(forensicRequest.Body) > 0 {
+			if err := auditCoordinator.RecordCyberPolicy(ctx, forensicRequest, forensicMetadata); err != nil {
+				logger.LegacyPrintf("handler.openai_gateway", "cyber forensic record failed: request_id=%s err=%v", requestID, err)
+			}
+		}
 		if cmSvc != nil {
 			cmSvc.RecordCyberPolicyEvent(ctx, service.CyberPolicyRecordInput{
 				LogOnly:         cyberLogOnly,

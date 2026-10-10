@@ -48,7 +48,7 @@
               <Icon name="edit" size="md" class="mr-2" />
               {{ t('admin.redeem.batchUpdate') }}
             </button>
-            <button @click="showGenerateDialog = true" class="btn btn-primary">
+            <button data-test="generate-open" @click="showGenerateDialog = true" class="btn btn-primary">
               {{ t('admin.redeem.generateCodes') }}
             </button>
           </div>
@@ -282,7 +282,7 @@
           <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
             {{ t('admin.redeem.generateCodesTitle') }}
           </h2>
-          <form @submit.prevent="handleGenerateCodes" class="space-y-4">
+          <form data-test="generate-form" @submit.prevent="handleGenerateCodes" class="space-y-4">
             <div>
               <label class="input-label">{{ t('admin.redeem.codeType') }}</label>
               <Select v-model="generateForm.type" :options="typeOptions" />
@@ -395,6 +395,34 @@
                 required
                 class="input"
               />
+            </div>
+            <div
+              v-if="generateForm.type !== 'invitation'"
+              class="flex items-start justify-between gap-4 border border-gray-200 bg-gray-50 p-4 dark:border-dark-600 dark:bg-dark-900/40"
+            >
+              <div>
+                <label class="font-medium text-gray-900 dark:text-white">
+                  {{ t('admin.redeem.batchUserOnce') }}
+                </label>
+                <p class="mt-1 text-sm leading-5 text-gray-500 dark:text-gray-400">
+                  {{ t('admin.redeem.batchUserOnceHint') }}
+                </p>
+              </div>
+              <Toggle data-test="batch-user-once" v-model="generateForm.batch_user_once" />
+            </div>
+            <div
+              v-if="generateForm.type !== 'invitation'"
+              class="flex items-start justify-between gap-4 border border-gray-200 bg-gray-50 p-4 dark:border-dark-600 dark:bg-dark-900/40"
+            >
+              <div>
+                <label class="font-medium text-gray-900 dark:text-white">
+                  {{ t('admin.redeem.globalUserOnce') }}
+                </label>
+                <p class="mt-1 text-sm leading-5 text-gray-500 dark:text-gray-400">
+                  {{ t('admin.redeem.globalUserOnceHint') }}
+                </p>
+              </div>
+              <Toggle data-test="global-user-once" v-model="generateForm.global_user_once" />
             </div>
             <div class="flex justify-end gap-3 pt-2">
               <button type="button" @click="showGenerateDialog = false" class="btn btn-secondary">
@@ -638,6 +666,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
+import Toggle from '@/components/common/Toggle.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -842,7 +871,9 @@ const generateForm = reactive({
   group_id: null as number | null,
   validity_days: 30,
   expiry_option: 'never' as RedeemCodeExpiryOption,
-  custom_expiry_days: 7
+  custom_expiry_days: 7,
+  batch_user_once: false,
+  global_user_once: false
 })
 
 // 监听类型变化，邀请码类型时自动设置 value 为 0
@@ -851,9 +882,25 @@ watch(
   (newType) => {
     if (newType === 'invitation') {
       generateForm.value = 0
+      generateForm.batch_user_once = false
+      generateForm.global_user_once = false
     } else if (generateForm.value === 0) {
       generateForm.value = 10
     }
+  }
+)
+
+watch(
+  () => generateForm.batch_user_once,
+  (enabled) => {
+    if (enabled) generateForm.global_user_once = false
+  }
+)
+
+watch(
+  () => generateForm.global_user_once,
+  (enabled) => {
+    if (enabled) generateForm.batch_user_once = false
   }
 )
 
@@ -1046,7 +1093,9 @@ const handleGenerateCodes = async () => {
       generateForm.value,
       generateForm.type === 'subscription' ? generateForm.group_id : undefined,
       generateForm.type === 'subscription' ? generateForm.validity_days : undefined,
-      expiresInDays
+      expiresInDays,
+      generateForm.batch_user_once,
+      generateForm.global_user_once
     )
     showGenerateDialog.value = false
     generatedCodes.value = result
@@ -1056,6 +1105,8 @@ const handleGenerateCodes = async () => {
     generateForm.validity_days = 30
     generateForm.expiry_option = 'never'
     generateForm.custom_expiry_days = 7
+    generateForm.batch_user_once = false
+    generateForm.global_user_once = false
     loadCodes()
   } catch (error: any) {
     appStore.showError(error.response?.data?.detail || t('admin.redeem.failedToGenerate'))

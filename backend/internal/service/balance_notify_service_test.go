@@ -3,6 +3,7 @@
 package service
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -277,4 +278,23 @@ func TestCollectBalanceNotifyRecipients_TrimsWhitespace(t *testing.T) {
 	}
 	got := s.collectBalanceNotifyRecipients(u)
 	require.Equal(t, []string{"trimmed@example.com"}, got)
+}
+
+func TestGetAccountQuotaNotifyEmailsFallsBackToSMTPFrom(t *testing.T) {
+	repo := newMockSettingRepo()
+	repo.data[SettingKeyAccountQuotaNotifyEmails] = "[]"
+	repo.data[SettingKeySMTPFrom] = " alerts@example.com "
+	s := NewBalanceNotifyService(NewEmailService(repo, nil), repo, nil)
+
+	require.Equal(t, []string{"alerts@example.com"}, s.getAccountQuotaNotifyEmails(context.Background()))
+	require.True(t, s.CanNotifyUpstreamBalanceLow())
+}
+
+func TestGetAccountQuotaNotifyEmailsPrefersVerifiedRecipients(t *testing.T) {
+	repo := newMockSettingRepo()
+	repo.data[SettingKeyAccountQuotaNotifyEmails] = `[{"email":"ops@example.com","verified":true,"disabled":false}]`
+	repo.data[SettingKeySMTPFrom] = "sender@example.com"
+	s := NewBalanceNotifyService(NewEmailService(repo, nil), repo, nil)
+
+	require.Equal(t, []string{"ops@example.com"}, s.getAccountQuotaNotifyEmails(context.Background()))
 }

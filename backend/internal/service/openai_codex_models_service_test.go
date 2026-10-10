@@ -2339,7 +2339,7 @@ func TestCompleteAPIKeyCodexModelsManifestForClientUsesCurrentSnapshotForCachedN
 	require.Equal(t, int32(1), calls.Load(), "second response should use the cached upstream source body")
 }
 
-func TestCompleteAPIKeyCodexModelsManifestForClientMarksOnlyOfficialVisionGPTImageInput(t *testing.T) {
+func TestCompleteAPIKeyCodexModelsManifestForClientMarksOfficialVisionGPTImageInput(t *testing.T) {
 	t.Parallel()
 
 	svc := &OpenAIGatewayService{}

@@ -39,6 +39,9 @@ func (s *AuthService) SendPendingOAuthVerifyCode(ctx context.Context, email stri
 	if isReservedEmail(email) {
 		return nil, ErrEmailReserved
 	}
+	if err := validateRegistrationEmailLocalPart(email); err != nil {
+		return nil, err
+	}
 	if s == nil || s.emailService == nil {
 		return nil, ErrServiceUnavailable
 	}
@@ -120,6 +123,9 @@ func (s *AuthService) RegisterOAuthEmailAccount(
 	email = strings.TrimSpace(strings.ToLower(email))
 	if isReservedEmail(email) {
 		return nil, nil, ErrEmailReserved
+	}
+	if err := validateRegistrationEmailLocalPart(email); err != nil {
+		return nil, nil, err
 	}
 	if err := s.VerifyOAuthEmailCode(ctx, email, verifyCode); err != nil {
 		slog.Error("oauth email register: verify code failed", "email", email, "error", err.Error())
@@ -208,6 +214,9 @@ func (s *AuthService) RegisterVerifiedOAuthEmailAccount(
 	}
 	if isReservedEmail(email) {
 		return nil, nil, ErrEmailReserved
+	}
+	if err := validateRegistrationEmailLocalPart(email); err != nil {
+		return nil, nil, err
 	}
 	if strings.TrimSpace(password) == "" {
 		return nil, nil, infraerrors.BadRequest("PASSWORD_REQUIRED", "password is required")

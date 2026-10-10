@@ -423,8 +423,6 @@ func normalizeOpenAILongContextBillingUpdateExtra(account *Account, input *Updat
 	return normalized, nil
 }
 
-// Grok media eligibility helpers live in account_grok_media_eligibility.go.
-
 func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]any) (*Account, error) {
 	if err := ValidateOpenAIRequestTimezoneExtra(input.Platform, accountExtra); err != nil {
 		return nil, err
@@ -444,6 +442,10 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 	delete(accountExtra, OpenCodeGoUsageAutoRefreshExtraKey)
 	delete(accountExtra, OpenCodeGoUsageSnapshotExtraKey)
 	accountExtra = prepareCodexFingerprintExtraForCreate(input.Platform, input.Type, accountExtra)
+	schedulable := true
+	if input.Schedulable != nil {
+		schedulable = *input.Schedulable
+	}
 	account := &Account{
 		InitialQualityPlan: input.InitialQualityPlan,
 		Name:               input.Name,
@@ -456,9 +458,20 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 		Concurrency:        normalizeAccountConcurrency(input.Platform, input.Type, input.Concurrency),
 		Priority:           input.Priority,
 		Status:             StatusActive,
-		Schedulable:        true,
+		Schedulable:        schedulable,
 	}
-	if input.ProbeEnabled != nil && *input.ProbeEnabled {
+	if err := validateUpstreamBalanceNotifyExtra(account.Extra); err != nil {
+		return nil, err
+	}
+	balanceNotifyEnabled := upstreamBalanceNotifyEnabled(account.Extra)
+	if balanceNotifyEnabled && !isUpstreamBillingProbeAccount(account) {
+		return nil, ErrUpstreamBillingProbeAccountInvalid
+	}
+	if !isUpstreamBillingProbeAccount(account) && account.Extra != nil {
+		delete(account.Extra, UpstreamBalanceNotifyEnabledExtraKey)
+		delete(account.Extra, UpstreamBalanceNotifyThresholdExtraKey)
+	}
+	if (input.ProbeEnabled != nil && *input.ProbeEnabled) || balanceNotifyEnabled {
 		if !isUpstreamBillingProbeAccount(account) {
 			return nil, ErrUpstreamBillingProbeAccountInvalid
 		}
@@ -584,6 +597,9 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 	// 绑定分组
 	if len(groupIDs) > 0 {
 		if err := s.accountRepo.BindGroups(ctx, account.ID, groupIDs); err != nil {
+			if cleanupErr := s.accountRepo.Delete(ctx, account.ID); cleanupErr != nil {
+				return nil, fmt.Errorf("bind account groups: %w; cleanup account %d: %v", err, account.ID, cleanupErr)
+			}
 			return nil, err
 		}
 	}
@@ -722,6 +738,17 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	requestedProbeEnabledUpdate := input.ProbeEnabled
 	requestedRateSyncEnabledUpdate := input.RateSyncEnabled
 	if input.Extra != nil {
+		for _, key := range []string{UpstreamBalanceNotifyEnabledExtraKey, UpstreamBalanceNotifyThresholdExtraKey} {
+			if _, provided := normalizedExtra[key]; provided {
+				continue
+			}
+			if current, exists := account.Extra[key]; exists {
+				normalizedExtra[key] = current
+			}
+		}
+		if err := validateUpstreamBalanceNotifyExtra(normalizedExtra); err != nil {
+			return nil, err
+		}
 		requestedProbeEnabled, hasRequestedProbeEnabled := normalizedExtra[UpstreamBillingProbeEnabledExtraKey]
 		if hasRequestedProbeEnabled {
 			enabled, ok := requestedProbeEnabled.(bool)
@@ -731,6 +758,10 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 			if requestedProbeEnabledUpdate != nil && *requestedProbeEnabledUpdate != enabled {
 				return nil, infraerrors.BadRequest("CONFLICTING_UPSTREAM_BILLING_PROBE_ENABLED", "conflicting upstream_billing_probe_enabled values")
 			}
+			requestedProbeEnabledUpdate = &enabled
+		}
+		if upstreamBalanceNotifyEnabled(normalizedExtra) {
+			enabled := true
 			requestedProbeEnabledUpdate = &enabled
 		}
 		delete(normalizedExtra, UpstreamBillingProbeEnabledExtraKey)
@@ -803,7 +834,8 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		requestedRateSyncEnabledUpdate = &disabled
 	}
 	if (requestedProbeEnabledUpdate != nil && *requestedProbeEnabledUpdate) ||
-		(requestedRateSyncEnabledUpdate != nil && *requestedRateSyncEnabledUpdate) {
+		(requestedRateSyncEnabledUpdate != nil && *requestedRateSyncEnabledUpdate) ||
+		upstreamBalanceNotifyEnabled(account.Extra) {
 		if !isUpstreamBillingProbeAccount(account) {
 			return nil, ErrUpstreamBillingProbeAccountInvalid
 		}
@@ -834,6 +866,8 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		if !isUpstreamBillingProbeAccount(account) {
 			delete(account.Extra, UpstreamBillingProbeEnabledExtraKey)
 			delete(account.Extra, UpstreamBillingRateSyncEnabledExtraKey)
+			delete(account.Extra, UpstreamBalanceNotifyEnabledExtraKey)
+			delete(account.Extra, UpstreamBalanceNotifyThresholdExtraKey)
 		}
 	}
 	if account.Extra != nil {
@@ -870,10 +904,6 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		if *input.RateMultiplier < 0 {
 			return nil, errors.New("rate_multiplier must be >= 0")
 		}
-		// 同步开启时倍率归上游所有，手工值活不过下一次成功探测（表现为"改了又自己
-		// 变回去"），与批量路径一样直接拒绝。判断的是本次请求生效后的状态：上面
-		// 已把请求携带的两个开关落进 account.Extra，所以"同一请求关闭同步 + 改倍率"
-		// （用户显式收回所有权）会走到这里时读到 false，正常放行。
 		if upstreamBillingRateSyncEnabled(account) {
 			return nil, ErrUpstreamBillingRateSyncConflict
 		}
@@ -932,9 +962,6 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	billingSettingsAppliedAtomically := false
 	updater := s.accountBillingRepo
 	if updater == nil {
-		// Unit tests and narrow internal callers may construct adminServiceImpl
-		// directly; production wiring requires this capability through
-		// AdminAccountRepository.
 		updater, _ = s.accountRepo.(AccountBillingSettingsRepository)
 	}
 	if updater != nil {
@@ -1064,6 +1091,8 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 	delete(input.Extra, UpstreamBillingRateSyncEnabledExtraKey)
 	delete(input.Extra, UpstreamBillingProbeExtraKey)
 	delete(input.Extra, UpstreamBillingProviderExtraKey)
+	delete(input.Extra, UpstreamBalanceNotifyEnabledExtraKey)
+	delete(input.Extra, UpstreamBalanceNotifyThresholdExtraKey)
 	delete(input.Extra, OllamaCloudUsageSessionExtraKey)
 	delete(input.Extra, OllamaCloudUsageAutoRefreshExtraKey)
 	delete(input.Extra, OllamaCloudUsageSnapshotExtraKey)

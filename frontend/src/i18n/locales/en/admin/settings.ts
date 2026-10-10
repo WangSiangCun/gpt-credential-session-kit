@@ -4,6 +4,7 @@ export default {
       description: 'Manage registration, email verification, default values, and SMTP settings',
       tabs: {
         general: 'General',
+        endpoints: 'Endpoints',
         agreement: 'Agreement',
         features: 'Feature Switches',
         security: 'Security',
@@ -12,6 +13,10 @@ export default {
         email: 'Email',
         backup: 'Backup',
         payment: 'Payment',
+      },
+      endpoints: {
+        title: 'API Endpoint Management',
+        description: 'Manage the default address and optional endpoints shown on the API Keys page, including their names and descriptions.',
       },
       features: {
         excelBpsImages: {
@@ -83,8 +88,20 @@ export default {
           title: 'Available Channels',
           description: 'Show logged-in users an aggregate view of the channels, models and pricing they can access. Disabled by default.',
           configureLink: 'Configure model pricing in Channel Management > Channel Pricing',
-          enabled: 'Enable Available Channels',
-          enabledHint: 'When off, the sidebar entry is hidden and the endpoint returns an empty list.',
+            enabled: 'Enable Available Channels',
+            enabledHint: 'When off, the sidebar entry is hidden and the endpoint returns an empty list.',
+            quotaVisible: 'Show channel remaining quota',
+            quotaVisibleHint: 'Show users the average remaining quota percentage across channel accounts. Disabled by default.',
+            accountsVisible: 'Show channel accounts',
+            accountsVisibleHint: 'Requires channel quota visibility. Shows account names, remaining quota and status as read-only data; credentials, notes and error details remain private.',
+            cacheHitRateVisible: 'Show average cache hit rate',
+            cacheHitRateVisibleHint: 'Show the token-weighted cache hit rate for recent channel requests. Disabled by default.',
+            timelineEnabled: 'Show recent request pixels',
+            timelineEnabledHint: 'Show one success/failure pixel for each recent request under Available Channels and refresh it on the interval below. Enabled by default.',
+            timelineRequestCount: 'Request timeline count',
+            timelineRequestCountHint: 'Sample size used by recent request pixels and average cache hit rate. Range 10-2000; default 1000.',
+            timelineRefreshSeconds: 'Timeline refresh interval (seconds)',
+            timelineRefreshSecondsHint: 'How often the Available Channels page refreshes request status and cache hit rate. Range 1-60 seconds; default 2.',
         },
         pelicanShowcase: {
           title: 'Pelican Showcase',
@@ -275,7 +292,9 @@ export default {
         exemptAdmin: 'Exempt administrators',
         exemptAdminHint: 'When enabled, admin accounts bypass panel rate limits so bulk operations are never throttled.',
         saved: 'Panel rate limit settings saved',
-        saveFailed: 'Failed to save panel rate limit settings'
+        saveFailed: 'Failed to save panel rate limit settings',
+        loadFailed: 'Failed to load panel rate limit settings. Retry before saving.',
+        invalidRpm: 'Request limits must be integers between 0 and 100000. Zero means unlimited.'
       },
       turnstile: {
         title: 'Cloudflare Turnstile',
@@ -768,6 +787,13 @@ export default {
         docUrlPlaceholder: 'https://docs.example.com',
         docUrlHint: 'Link to your documentation site. Leave empty to hide the documentation link.',
         siteLogo: 'Site Logo',
+        qqGroupTitle: 'QQ Group Entry',
+        qqGroupHint: 'Show a penguin button in the signed-in header so users can open the group QR code',
+        qqGroupQrCode: 'QQ Group QR Code',
+        qqGroupQrCodeHint: 'Upload a clear group QR card up to 600 KB',
+        qqGroupDescription: 'Caption Below QR Code',
+        qqGroupDescriptionPlaceholder: 'For example: Scan to join the user group for help and updates',
+        qqGroupDescriptionHint: 'Up to 300 characters; line breaks are preserved',
         uploadImage: 'Upload Image',
         remove: 'Remove',
         logoHint: 'PNG, JPG, or SVG. Max 300KB. Recommended: 80x80px square image.',
@@ -1168,6 +1194,18 @@ export default {
         cooldownSecondsHint: 'Default cooldown duration (1-7200 seconds); explicit upstream reset times still take precedence',
         saved: '429 default cooldown settings saved',
         saveFailed: 'Failed to save 429 default cooldown settings'
+      },
+      openAI403Protection: {
+        title: 'OpenAI 403 Protection',
+        description: 'Prevent one abnormal request from pausing an entire OpenAI account',
+        enabled: 'Enable 403 Protection',
+        enabledHint: 'When disabled, a 403 only switches the current request and does not change global account scheduling',
+        thresholdCount: 'Trigger Count',
+        thresholdWindowMinutes: 'Counting Window (minutes)',
+        cooldownMinutes: 'Pause Duration (minutes)',
+        behaviorHint: 'Before the threshold, only the current request switches accounts. At the threshold, the account pauses temporarily and recovers automatically. Successful requests reset the count.',
+        saved: 'OpenAI 403 protection settings saved',
+        saveFailed: 'Failed to save OpenAI 403 protection settings'
       },
       streamTimeout: {
         title: 'Stream Timeout Handling',

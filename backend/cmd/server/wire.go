@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"github.com/Wei-Shaw/sub2api/internal/requestcapture"
 	"log"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/ent"
+	"github.com/Wei-Shaw/sub2api/internal/accountmarket"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
@@ -26,11 +28,13 @@ import (
 )
 
 type Application struct {
-	Lifecycle     *server.Lifecycle
-	Server        *http.Server
-	PromptAudit   *securityaudit.PromptService
-	PluginManager *service.PluginManager
-	Cleanup       func()
+	Lifecycle       *server.Lifecycle
+	Server          *http.Server
+	PromptAudit     *securityaudit.PromptService
+	PluginManager   *service.PluginManager
+	Cleanup         func()
+	Database        *sql.DB
+	UsageRecordPool *service.UsageRecordWorkerPool
 }
 
 func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
@@ -41,6 +45,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 		// Business layer ProviderSets
 		repository.ProviderSet,
 		service.ProviderSet,
+		accountmarket.ProviderSet,
 		securityaudit.ProviderSet,
 		payment.ProviderSet,
 		middleware.ProviderSet,
@@ -60,7 +65,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 		provideCleanup,
 
 		// Application struct
-		wire.Struct(new(Application), "Server", "PromptAudit", "PluginManager", "Lifecycle", "Cleanup"),
+		wire.Struct(new(Application), "Database", "UsageRecordPool", "Server", "PromptAudit", "PluginManager", "Lifecycle", "Cleanup"),
 	)
 	return nil, nil
 }

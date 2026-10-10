@@ -433,6 +433,8 @@ type CreateAccountInput struct {
 	ExpiresAt           *int64
 	AutoPauseOnExpired  *bool
 	ProbeEnabled        *bool
+	// Nil retains the normal scheduler default; market imports may start paused.
+	Schedulable *bool
 	// SkipDefaultGroupBind prevents auto-binding to platform default group when GroupIDs is empty.
 	SkipDefaultGroupBind bool
 	// SkipMixedChannelCheck skips the mixed channel risk check when binding groups.
@@ -582,12 +584,14 @@ type UpdateProxyInput struct {
 }
 
 type GenerateRedeemCodesInput struct {
-	Count        int
-	Type         string
-	Value        float64
-	GroupID      *int64 // 订阅类型专用：关联的分组ID
-	ValidityDays int    // 订阅类型专用：有效天数
-	ExpiresAt    *time.Time
+	Count          int
+	Type           string
+	Value          float64
+	GroupID        *int64 // 订阅类型专用：关联的分组ID
+	ValidityDays   int    // 订阅类型专用：有效天数
+	ExpiresAt      *time.Time
+	BatchUserOnce  bool
+	GlobalUserOnce bool
 }
 
 type ProxyBatchDeleteResult struct {
@@ -737,6 +741,7 @@ type adminServiceImpl struct {
 	privacyClientFactory PrivacyClientFactory
 	runtimeBlocker       AccountRuntimeBlocker
 	affiliateService     adminRechargeAffiliateAccruer
+	notificationEmails   adminRechargeNotificationSender
 	compositeRouteRepo   CompositeModelRouteRepository
 	compositeResolver    *CompositeRouteResolver
 	// 分组平台变更后用来失效渠道缓存；可为 nil（缓存会在 TTL 到期后自然重建）
@@ -751,6 +756,14 @@ type ChannelCacheInvalidator interface {
 
 type adminRechargeAffiliateAccruer interface {
 	AccrueInviteRebate(ctx context.Context, inviteeUserID int64, baseRechargeAmount float64) (float64, error)
+}
+
+type adminRechargeNotificationSender interface {
+	Send(ctx context.Context, input NotificationEmailSendInput) error
+}
+
+type adminRechargeLocaleResolver interface {
+	ResolveRecipientLocaleWithFallback(ctx context.Context, userID int64, email, fallback string) string
 }
 
 type userGroupRateBatchReader interface {
@@ -779,6 +792,7 @@ func NewAdminService(
 	privacyClientFactory PrivacyClientFactory,
 	runtimeBlocker AccountRuntimeBlocker,
 	affiliateService *AffiliateService,
+	notificationEmailService *NotificationEmailService,
 	compositeRouteRepo CompositeModelRouteRepository,
 	compositeResolver *CompositeRouteResolver,
 	channelCacheInvalidator ChannelCacheInvalidator,
@@ -808,6 +822,7 @@ func NewAdminService(
 		privacyClientFactory: privacyClientFactory,
 		runtimeBlocker:       runtimeBlocker,
 		affiliateService:     affiliateService,
+		notificationEmails:   notificationEmailService,
 		compositeRouteRepo:   compositeRouteRepo,
 		compositeResolver:    compositeResolver,
 

@@ -2,6 +2,12 @@ package service
 
 import "strings"
 
+type CloudCatPlan struct {
+	Amount    float64 `json:"amount"`
+	PayAmount float64 `json:"pay_amount"`
+	Image     string  `json:"image"`
+}
+
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {
@@ -161,9 +167,14 @@ type SystemSettings struct {
 	DocURL                      string
 	HomeContent                 string
 	CompactHomeEnabled          bool
+	QQGroupEnabled              bool
+	QQGroupQRCode               string
+	QQGroupDescription          string
 	HideCcsImportButton         bool
 	PurchaseSubscriptionEnabled bool
 	PurchaseSubscriptionURL     string
+	CloudCatStoreURL            string
+	CloudCatPlans               []CloudCatPlan
 	TableDefaultPageSize        int
 	TablePageSizeOptions        []int
 	CustomMenuItems             string // JSON array of custom menu items
@@ -223,7 +234,13 @@ type SystemSettings struct {
 	GrokVideoSourceURLEnabled      bool   `json:"grok_video_source_url_enabled"`
 
 	// Available Channels feature (user-facing aggregate view)
-	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
+	AvailableChannelsEnabled                bool `json:"available_channels_enabled"`
+	AvailableChannelsQuotaVisible           bool `json:"available_channels_quota_visible"`
+	AvailableChannelsAccountsVisible        bool `json:"available_channels_accounts_visible"`
+	AvailableChannelsCacheHitRateVisible    bool `json:"available_channels_cache_hit_rate_visible"`
+	AvailableChannelsTimelineEnabled        bool `json:"available_channels_timeline_enabled"`
+	AvailableChannelsTimelineRequestCount   int  `json:"available_channels_timeline_request_count"`
+	AvailableChannelsTimelineRefreshSeconds int  `json:"available_channels_timeline_refresh_seconds"`
 
 	// Pelican showcase (user-facing gallery of scheduled Pelican HTML results)
 	PelicanShowcaseEnabled bool                  `json:"pelican_showcase_enabled"`
@@ -404,10 +421,15 @@ type PublicSettings struct {
 	DocURL                              string
 	HomeContent                         string
 	CompactHomeEnabled                  bool
+	QQGroupEnabled                      bool
+	QQGroupQRCode                       string
+	QQGroupDescription                  string
 	HideCcsImportButton                 bool
 
 	PurchaseSubscriptionEnabled bool
 	PurchaseSubscriptionURL     string
+	CloudCatStoreURL            string
+	CloudCatPlans               []CloudCatPlan
 	TableDefaultPageSize        int
 	TablePageSizeOptions        []int
 	CustomMenuItems             string // JSON array of custom menu items
@@ -451,7 +473,13 @@ type PublicSettings struct {
 	GrokDefaultBaseURLMode         string `json:"grok_default_base_url_mode"`
 
 	// Available Channels feature (user-facing aggregate view)
-	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
+	AvailableChannelsEnabled                bool `json:"available_channels_enabled"`
+	AvailableChannelsQuotaVisible           bool `json:"available_channels_quota_visible"`
+	AvailableChannelsAccountsVisible        bool `json:"available_channels_accounts_visible"`
+	AvailableChannelsCacheHitRateVisible    bool `json:"available_channels_cache_hit_rate_visible"`
+	AvailableChannelsTimelineEnabled        bool `json:"available_channels_timeline_enabled"`
+	AvailableChannelsTimelineRequestCount   int  `json:"available_channels_timeline_request_count"`
+	AvailableChannelsTimelineRefreshSeconds int  `json:"available_channels_timeline_refresh_seconds"`
 
 	// Pelican showcase feature (user-facing gallery; limits stay admin-only)
 	PelicanShowcaseEnabled bool `json:"pelican_showcase_enabled"`
@@ -638,6 +666,22 @@ type RateLimit429CooldownSettings struct {
 	Enabled bool `json:"enabled"`
 	// CooldownSeconds 默认回避时长（秒）
 	CooldownSeconds int `json:"cooldown_seconds"`
+}
+
+type OpenAI403ProtectionSettings struct {
+	Enabled                bool `json:"enabled"`
+	ThresholdCount         int  `json:"threshold_count"`
+	ThresholdWindowMinutes int  `json:"threshold_window_minutes"`
+	CooldownMinutes        int  `json:"cooldown_minutes"`
+}
+
+func DefaultOpenAI403ProtectionSettings() *OpenAI403ProtectionSettings {
+	return &OpenAI403ProtectionSettings{
+		Enabled:                true,
+		ThresholdCount:         3,
+		ThresholdWindowMinutes: 180,
+		CooldownMinutes:        10,
+	}
 }
 
 // OpenAIImagesOAuthUnavailableCooldownSettings controls how long an OAuth account's image capability is paused when unavailable.

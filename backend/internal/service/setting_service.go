@@ -195,6 +195,22 @@ type SettingService struct {
 	codexHarvestWake                 chan struct{}
 }
 
+// GetRawSetting and SetRawSetting support small feature-specific settings
+// without widening the public system-settings DTO.
+func (s *SettingService) GetRawSetting(ctx context.Context, key string) (string, error) {
+	if s == nil || s.settingRepo == nil {
+		return "", errors.New("setting repository is not available")
+	}
+	return s.settingRepo.GetValue(ctx, key)
+}
+
+func (s *SettingService) SetRawSetting(ctx context.Context, key, value string) error {
+	if s == nil || s.settingRepo == nil {
+		return errors.New("setting repository is not available")
+	}
+	return s.settingRepo.Set(ctx, key, value)
+}
+
 // DefaultPlatformQuotaSetting 单 platform 三档限额（nil = 沿用上层；0 = 显式禁用；>0 = 上限）
 type DefaultPlatformQuotaSetting struct {
 	DailyLimitUSD   *float64 `json:"daily"`

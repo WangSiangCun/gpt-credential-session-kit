@@ -558,13 +558,21 @@ func grokQuotaProbeModel() string {
 }
 
 func buildGrokQuotaProbeBody(model string) ([]byte, error) {
+	return buildGrokResponsesTestBody(model, grokQuotaProbeInput)
+}
+
+func buildGrokResponsesTestBody(model, prompt string) ([]byte, error) {
 	model = strings.TrimSpace(model)
 	if model == "" {
 		model = grokQuotaDefaultModel
 	}
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" {
+		prompt = grokQuotaProbeInput
+	}
 	return json.Marshal(map[string]any{
 		"model":  model,
-		"input":  grokQuotaProbeInput,
+		"input":  prompt,
 		"stream": true,
 	})
 }

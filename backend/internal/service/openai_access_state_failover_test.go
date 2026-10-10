@@ -171,7 +171,7 @@ func TestOpenAIHTTPAuthMessagesUseExistingStatusPolicies(t *testing.T) {
 
 	t.Run("403 uses counter cooldown", func(t *testing.T) {
 		repo := &openAIAuthPolicyAccountRepo{}
-		counter := &openAIAuthPolicy403Counter{counts: []int64{1}}
+		counter := &openAIAuthPolicy403Counter{counts: []int64{3}}
 		rateLimits := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 		rateLimits.openAI403CounterCache = counter
 		svc := &OpenAIGatewayService{rateLimitService: rateLimits}

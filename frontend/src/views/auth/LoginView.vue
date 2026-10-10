@@ -1,5 +1,5 @@
 <template>
-  <AuthLayout>
+  <AuthLayout mode="login" :focus="sceneFocus">
     <div class="space-y-6">
       <!-- Title -->
       <div class="text-center">
@@ -32,6 +32,8 @@
               class="input pl-11"
               :class="{ 'input-error': errors.email }"
               :placeholder="t('auth.emailPlaceholder')"
+              @focus="sceneFocus = 'email'"
+              @blur="sceneFocus = null"
             />
           </div>
         </div>
@@ -55,6 +57,8 @@
               class="input pl-11 pr-11"
               :class="{ 'input-error': errors.password }"
               :placeholder="t('auth.passwordPlaceholder')"
+              @focus="sceneFocus = 'password'"
+              @blur="sceneFocus = null"
             />
             <button
               type="button"
@@ -251,6 +255,7 @@ import type {
 } from '@/types'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { clearAllAffiliateReferralCodes } from '@/utils/oauthAffiliate'
+import { resolveAuthenticatedHomePath } from '@/router/setupRedirect'
 
 const { t } = useI18n()
 const LOGIN_AGREEMENT_STORAGE_KEY = 'sub2api_login_agreement_consent'
@@ -268,6 +273,7 @@ const passkeyLoading = ref<boolean>(false)
 const errorMessage = ref<string>('')
 const showPassword = ref<boolean>(false)
 const publicSettingsLoaded = ref<boolean>(false)
+const sceneFocus = ref<'email' | 'password' | null>(null)
 
 // Public settings
 const registrationEnabled = ref<boolean>(false)
@@ -602,8 +608,8 @@ async function handleLogin(): Promise<void> {
     clearAllAffiliateReferralCodes()
     appStore.showSuccess(t('auth.loginSuccess'))
 
-    // Redirect to dashboard or intended route
-    const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
+    // Preserve an intended route; otherwise send users to the available channels.
+    const redirectTo = (router.currentRoute.value.query.redirect as string) || resolveAuthenticatedHomePath(authStore.isAdmin, authStore.isObserver)
     await router.push(redirectTo)
   } catch (error: unknown) {
     errorMessage.value = extractI18nErrorMessage(error, t, 'auth.errors', t('auth.loginFailed'))
@@ -712,8 +718,8 @@ async function handle2FAVerify(code: string): Promise<void> {
     clearAllAffiliateReferralCodes()
     appStore.showSuccess(t('auth.loginSuccess'))
 
-    // Redirect to dashboard or intended route
-    const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
+    // Preserve an intended route; otherwise send users to the available channels.
+    const redirectTo = (router.currentRoute.value.query.redirect as string) || resolveAuthenticatedHomePath(authStore.isAdmin, authStore.isObserver)
     await router.push(redirectTo)
   } catch (error: unknown) {
     const err = error as { message?: string; response?: { data?: { message?: string } } }

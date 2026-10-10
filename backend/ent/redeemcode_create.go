@@ -170,6 +170,48 @@ func (_c *RedeemCodeCreate) SetNillableValidityDays(v *int) *RedeemCodeCreate {
 	return _c
 }
 
+// SetBatchID sets the "batch_id" field.
+func (_c *RedeemCodeCreate) SetBatchID(v string) *RedeemCodeCreate {
+	_c.mutation.SetBatchID(v)
+	return _c
+}
+
+// SetNillableBatchID sets the "batch_id" field if the given value is not nil.
+func (_c *RedeemCodeCreate) SetNillableBatchID(v *string) *RedeemCodeCreate {
+	if v != nil {
+		_c.SetBatchID(*v)
+	}
+	return _c
+}
+
+// SetBatchUserOnce sets the "batch_user_once" field.
+func (_c *RedeemCodeCreate) SetBatchUserOnce(v bool) *RedeemCodeCreate {
+	_c.mutation.SetBatchUserOnce(v)
+	return _c
+}
+
+// SetNillableBatchUserOnce sets the "batch_user_once" field if the given value is not nil.
+func (_c *RedeemCodeCreate) SetNillableBatchUserOnce(v *bool) *RedeemCodeCreate {
+	if v != nil {
+		_c.SetBatchUserOnce(*v)
+	}
+	return _c
+}
+
+// SetGlobalUserOnce sets the "global_user_once" field.
+func (_c *RedeemCodeCreate) SetGlobalUserOnce(v bool) *RedeemCodeCreate {
+	_c.mutation.SetGlobalUserOnce(v)
+	return _c
+}
+
+// SetNillableGlobalUserOnce sets the "global_user_once" field if the given value is not nil.
+func (_c *RedeemCodeCreate) SetNillableGlobalUserOnce(v *bool) *RedeemCodeCreate {
+	if v != nil {
+		_c.SetGlobalUserOnce(*v)
+	}
+	return _c
+}
+
 // SetUserID sets the "user" edge to the User entity by ID.
 func (_c *RedeemCodeCreate) SetUserID(id int64) *RedeemCodeCreate {
 	_c.mutation.SetUserID(id)
@@ -249,6 +291,14 @@ func (_c *RedeemCodeCreate) defaults() {
 		v := redeemcode.DefaultValidityDays
 		_c.mutation.SetValidityDays(v)
 	}
+	if _, ok := _c.mutation.BatchUserOnce(); !ok {
+		v := redeemcode.DefaultBatchUserOnce
+		_c.mutation.SetBatchUserOnce(v)
+	}
+	if _, ok := _c.mutation.GlobalUserOnce(); !ok {
+		v := redeemcode.DefaultGlobalUserOnce
+		_c.mutation.SetGlobalUserOnce(v)
+	}
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -285,6 +335,17 @@ func (_c *RedeemCodeCreate) check() error {
 	}
 	if _, ok := _c.mutation.ValidityDays(); !ok {
 		return &ValidationError{Name: "validity_days", err: errors.New(`ent: missing required field "RedeemCode.validity_days"`)}
+	}
+	if v, ok := _c.mutation.BatchID(); ok {
+		if err := redeemcode.BatchIDValidator(v); err != nil {
+			return &ValidationError{Name: "batch_id", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.batch_id": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.BatchUserOnce(); !ok {
+		return &ValidationError{Name: "batch_user_once", err: errors.New(`ent: missing required field "RedeemCode.batch_user_once"`)}
+	}
+	if _, ok := _c.mutation.GlobalUserOnce(); !ok {
+		return &ValidationError{Name: "global_user_once", err: errors.New(`ent: missing required field "RedeemCode.global_user_once"`)}
 	}
 	return nil
 }
@@ -348,6 +409,18 @@ func (_c *RedeemCodeCreate) createSpec() (*RedeemCode, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ValidityDays(); ok {
 		_spec.SetField(redeemcode.FieldValidityDays, field.TypeInt, value)
 		_node.ValidityDays = value
+	}
+	if value, ok := _c.mutation.BatchID(); ok {
+		_spec.SetField(redeemcode.FieldBatchID, field.TypeString, value)
+		_node.BatchID = &value
+	}
+	if value, ok := _c.mutation.BatchUserOnce(); ok {
+		_spec.SetField(redeemcode.FieldBatchUserOnce, field.TypeBool, value)
+		_node.BatchUserOnce = value
+	}
+	if value, ok := _c.mutation.GlobalUserOnce(); ok {
+		_spec.SetField(redeemcode.FieldGlobalUserOnce, field.TypeBool, value)
+		_node.GlobalUserOnce = value
 	}
 	if nodes := _c.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -597,6 +670,48 @@ func (u *RedeemCodeUpsert) AddValidityDays(v int) *RedeemCodeUpsert {
 	return u
 }
 
+// SetBatchID sets the "batch_id" field.
+func (u *RedeemCodeUpsert) SetBatchID(v string) *RedeemCodeUpsert {
+	u.Set(redeemcode.FieldBatchID, v)
+	return u
+}
+
+// UpdateBatchID sets the "batch_id" field to the value that was provided on create.
+func (u *RedeemCodeUpsert) UpdateBatchID() *RedeemCodeUpsert {
+	u.SetExcluded(redeemcode.FieldBatchID)
+	return u
+}
+
+// ClearBatchID clears the value of the "batch_id" field.
+func (u *RedeemCodeUpsert) ClearBatchID() *RedeemCodeUpsert {
+	u.SetNull(redeemcode.FieldBatchID)
+	return u
+}
+
+// SetBatchUserOnce sets the "batch_user_once" field.
+func (u *RedeemCodeUpsert) SetBatchUserOnce(v bool) *RedeemCodeUpsert {
+	u.Set(redeemcode.FieldBatchUserOnce, v)
+	return u
+}
+
+// UpdateBatchUserOnce sets the "batch_user_once" field to the value that was provided on create.
+func (u *RedeemCodeUpsert) UpdateBatchUserOnce() *RedeemCodeUpsert {
+	u.SetExcluded(redeemcode.FieldBatchUserOnce)
+	return u
+}
+
+// SetGlobalUserOnce sets the "global_user_once" field.
+func (u *RedeemCodeUpsert) SetGlobalUserOnce(v bool) *RedeemCodeUpsert {
+	u.Set(redeemcode.FieldGlobalUserOnce, v)
+	return u
+}
+
+// UpdateGlobalUserOnce sets the "global_user_once" field to the value that was provided on create.
+func (u *RedeemCodeUpsert) UpdateGlobalUserOnce() *RedeemCodeUpsert {
+	u.SetExcluded(redeemcode.FieldGlobalUserOnce)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -828,6 +943,55 @@ func (u *RedeemCodeUpsertOne) AddValidityDays(v int) *RedeemCodeUpsertOne {
 func (u *RedeemCodeUpsertOne) UpdateValidityDays() *RedeemCodeUpsertOne {
 	return u.Update(func(s *RedeemCodeUpsert) {
 		s.UpdateValidityDays()
+	})
+}
+
+// SetBatchID sets the "batch_id" field.
+func (u *RedeemCodeUpsertOne) SetBatchID(v string) *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetBatchID(v)
+	})
+}
+
+// UpdateBatchID sets the "batch_id" field to the value that was provided on create.
+func (u *RedeemCodeUpsertOne) UpdateBatchID() *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateBatchID()
+	})
+}
+
+// ClearBatchID clears the value of the "batch_id" field.
+func (u *RedeemCodeUpsertOne) ClearBatchID() *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.ClearBatchID()
+	})
+}
+
+// SetBatchUserOnce sets the "batch_user_once" field.
+func (u *RedeemCodeUpsertOne) SetBatchUserOnce(v bool) *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetBatchUserOnce(v)
+	})
+}
+
+// UpdateBatchUserOnce sets the "batch_user_once" field to the value that was provided on create.
+func (u *RedeemCodeUpsertOne) UpdateBatchUserOnce() *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateBatchUserOnce()
+	})
+}
+
+// SetGlobalUserOnce sets the "global_user_once" field.
+func (u *RedeemCodeUpsertOne) SetGlobalUserOnce(v bool) *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetGlobalUserOnce(v)
+	})
+}
+
+// UpdateGlobalUserOnce sets the "global_user_once" field to the value that was provided on create.
+func (u *RedeemCodeUpsertOne) UpdateGlobalUserOnce() *RedeemCodeUpsertOne {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateGlobalUserOnce()
 	})
 }
 
@@ -1228,6 +1392,55 @@ func (u *RedeemCodeUpsertBulk) AddValidityDays(v int) *RedeemCodeUpsertBulk {
 func (u *RedeemCodeUpsertBulk) UpdateValidityDays() *RedeemCodeUpsertBulk {
 	return u.Update(func(s *RedeemCodeUpsert) {
 		s.UpdateValidityDays()
+	})
+}
+
+// SetBatchID sets the "batch_id" field.
+func (u *RedeemCodeUpsertBulk) SetBatchID(v string) *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetBatchID(v)
+	})
+}
+
+// UpdateBatchID sets the "batch_id" field to the value that was provided on create.
+func (u *RedeemCodeUpsertBulk) UpdateBatchID() *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateBatchID()
+	})
+}
+
+// ClearBatchID clears the value of the "batch_id" field.
+func (u *RedeemCodeUpsertBulk) ClearBatchID() *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.ClearBatchID()
+	})
+}
+
+// SetBatchUserOnce sets the "batch_user_once" field.
+func (u *RedeemCodeUpsertBulk) SetBatchUserOnce(v bool) *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetBatchUserOnce(v)
+	})
+}
+
+// UpdateBatchUserOnce sets the "batch_user_once" field to the value that was provided on create.
+func (u *RedeemCodeUpsertBulk) UpdateBatchUserOnce() *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateBatchUserOnce()
+	})
+}
+
+// SetGlobalUserOnce sets the "global_user_once" field.
+func (u *RedeemCodeUpsertBulk) SetGlobalUserOnce(v bool) *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.SetGlobalUserOnce(v)
+	})
+}
+
+// UpdateGlobalUserOnce sets the "global_user_once" field to the value that was provided on create.
+func (u *RedeemCodeUpsertBulk) UpdateGlobalUserOnce() *RedeemCodeUpsertBulk {
+	return u.Update(func(s *RedeemCodeUpsert) {
+		s.UpdateGlobalUserOnce()
 	})
 }
 

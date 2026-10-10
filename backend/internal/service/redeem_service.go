@@ -18,12 +18,14 @@ import (
 const InsufficientUserBalanceMessage = "Insufficient user balance. Please top up your user balance."
 
 var (
-	ErrRedeemCodeNotFound  = infraerrors.NotFound("REDEEM_CODE_NOT_FOUND", "redeem code not found")
-	ErrRedeemCodeUsed      = infraerrors.Conflict("REDEEM_CODE_USED", "redeem code already used")
-	ErrRedeemCodeExpired   = infraerrors.Conflict("REDEEM_CODE_EXPIRED", "redeem code expired")
-	ErrInsufficientBalance = infraerrors.BadRequest("INSUFFICIENT_BALANCE", InsufficientUserBalanceMessage)
-	ErrRedeemRateLimited   = infraerrors.TooManyRequests("REDEEM_RATE_LIMITED", "too many failed attempts, please try again later")
-	ErrRedeemCodeLocked    = infraerrors.Conflict("REDEEM_CODE_LOCKED", "redeem code is being processed, please try again")
+	ErrRedeemCodeNotFound      = infraerrors.NotFound("REDEEM_CODE_NOT_FOUND", "redeem code not found")
+	ErrRedeemCodeUsed          = infraerrors.Conflict("REDEEM_CODE_USED", "redeem code already used")
+	ErrRedeemCodeExpired       = infraerrors.Conflict("REDEEM_CODE_EXPIRED", "redeem code expired")
+	ErrInsufficientBalance     = infraerrors.BadRequest("INSUFFICIENT_BALANCE", InsufficientUserBalanceMessage)
+	ErrRedeemRateLimited       = infraerrors.TooManyRequests("REDEEM_RATE_LIMITED", "too many failed attempts, please try again later")
+	ErrRedeemCodeLocked        = infraerrors.Conflict("REDEEM_CODE_LOCKED", "redeem code is being processed, please try again")
+	ErrRedeemBatchAlreadyUsed  = infraerrors.Conflict("REDEEM_BATCH_ALREADY_USED", "you have already redeemed a code from this batch")
+	ErrRedeemGlobalAlreadyUsed = infraerrors.Conflict("REDEEM_GLOBAL_ALREADY_USED", "you have already redeemed a globally limited code")
 )
 
 const (
@@ -76,11 +78,21 @@ type RedeemCodeRepository interface {
 	SumPositiveBalanceByUser(ctx context.Context, userID int64) (float64, error)
 }
 
+type RedeemBatchClaimRepository interface {
+	ClaimBatchUse(ctx context.Context, batchID string, userID, redeemCodeID int64) error
+}
+
+type RedeemGlobalClaimRepository interface {
+	ClaimGlobalUse(ctx context.Context, userID, redeemCodeID int64) error
+}
+
 // GenerateCodesRequest 生成兑换码请求
 type GenerateCodesRequest struct {
-	Count int     `json:"count"`
-	Value float64 `json:"value"`
-	Type  string  `json:"type"`
+	Count          int     `json:"count"`
+	Value          float64 `json:"value"`
+	Type           string  `json:"type"`
+	BatchUserOnce  bool    `json:"batch_user_once"`
+	GlobalUserOnce bool    `json:"global_user_once"`
 }
 
 // RedeemCodeResponse 兑换码响应
@@ -218,11 +230,26 @@ func (s *RedeemService) GenerateCodes(ctx context.Context, req GenerateCodesRequ
 	if codeType == "" {
 		codeType = RedeemTypeBalance
 	}
+	if req.BatchUserOnce && req.GlobalUserOnce {
+		return nil, infraerrors.BadRequest("REDEEM_USER_ONCE_CONFLICT", "batch and global user restrictions cannot both be enabled")
+	}
+	if codeType == RedeemTypeInvitation && (req.BatchUserOnce || req.GlobalUserOnce) {
+		return nil, infraerrors.BadRequest("REDEEM_BATCH_USER_ONCE_UNSUPPORTED", "batch user restriction is not supported for invitation codes")
+	}
 
 	// 邀请码类型的 value 设为 0
 	value := req.Value
 	if codeType == RedeemTypeInvitation {
 		value = 0
+	}
+
+	var batchID *string
+	if req.BatchUserOnce {
+		id, err := GenerateRedeemBatchID()
+		if err != nil {
+			return nil, fmt.Errorf("generate batch id: %w", err)
+		}
+		batchID = &id
 	}
 
 	codes := make([]RedeemCode, 0, req.Count)
@@ -233,10 +260,13 @@ func (s *RedeemService) GenerateCodes(ctx context.Context, req GenerateCodesRequ
 		}
 
 		codes = append(codes, RedeemCode{
-			Code:   code,
-			Type:   codeType,
-			Value:  value,
-			Status: StatusUnused,
+			Code:           code,
+			Type:           codeType,
+			Value:          value,
+			Status:         StatusUnused,
+			BatchID:        batchID,
+			BatchUserOnce:  req.BatchUserOnce,
+			GlobalUserOnce: req.GlobalUserOnce,
 		})
 	}
 
@@ -478,6 +508,35 @@ func (s *RedeemService) redeem(ctx context.Context, userID int64, code string, r
 
 	// 将事务放入 context，使 repository 方法能够使用同一事务
 	txCtx := dbent.NewTxContext(ctx, tx)
+
+	if redeemCode.BatchUserOnce {
+		if redeemCode.BatchID == nil || *redeemCode.BatchID == "" {
+			return nil, infraerrors.BadRequest("REDEEM_CODE_INVALID", "batch-limited redeem code is missing batch_id")
+		}
+		claimRepo, ok := s.redeemRepo.(RedeemBatchClaimRepository)
+		if !ok {
+			return nil, errors.New("redeem repository does not support batch claims")
+		}
+		if err := claimRepo.ClaimBatchUse(txCtx, *redeemCode.BatchID, userID, redeemCode.ID); err != nil {
+			if errors.Is(err, ErrRedeemBatchAlreadyUsed) {
+				return nil, ErrRedeemBatchAlreadyUsed
+			}
+			return nil, fmt.Errorf("claim redeem batch: %w", err)
+		}
+	}
+
+	if redeemCode.GlobalUserOnce {
+		claimRepo, ok := s.redeemRepo.(RedeemGlobalClaimRepository)
+		if !ok {
+			return nil, errors.New("redeem repository does not support global claims")
+		}
+		if err := claimRepo.ClaimGlobalUse(txCtx, userID, redeemCode.ID); err != nil {
+			if errors.Is(err, ErrRedeemGlobalAlreadyUsed) {
+				return nil, ErrRedeemGlobalAlreadyUsed
+			}
+			return nil, fmt.Errorf("claim global redeem use: %w", err)
+		}
+	}
 
 	// 【关键】先标记兑换码为已使用，确保并发安全
 	// 利用数据库乐观锁（WHERE status = 'unused'）保证原子性

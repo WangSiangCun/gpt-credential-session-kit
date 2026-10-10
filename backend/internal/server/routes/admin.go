@@ -31,7 +31,6 @@ func RegisterAdminRoutes(
 
 	admin := v1.Group("/admin")
 	admin.Use(gin.HandlerFunc(adminAuth))
-	// 面板全局按用户限流（默认管理员豁免，可在系统设置中关闭豁免）
 	admin.Use(panelRateLimiter.Global())
 	// 审计中间件挂在认证之后：所有管理面变更类操作 + 敏感读取入审计日志
 	admin.Use(gin.HandlerFunc(auditLog))
@@ -84,6 +83,8 @@ func RegisterAdminRoutes(
 
 		// 优惠码管理
 		registerPromoCodeRoutes(admin, h)
+
+		registerLotteryRoutes(admin, h)
 
 		// 系统设置
 		registerSettingsRoutes(admin, h)
@@ -140,6 +141,7 @@ func RegisterAdminRoutes(
 
 		// 鹈鹕测智用户展示
 		registerPelicanShowcaseRoutes(admin, h)
+		registerIntelligenceTestRoutes(admin, h)
 
 		// 渠道管理
 		registerChannelRoutes(admin, h)
@@ -158,8 +160,21 @@ func RegisterAdminRoutes(
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
 
+		registerAccountMarketRoutes(admin, h)
+
 		// 操作审计日志
 		registerAuditLogRoutes(admin, h, stepUpAuth)
+	}
+}
+
+func registerAccountMarketRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	market := admin.Group("/account-market")
+	{
+		market.GET("/config", h.AccountMarket.AdminGetConfig)
+		market.PUT("/config", h.AccountMarket.AdminUpdateConfig)
+		market.GET("/accounts", h.AccountMarket.AdminListAccounts)
+		market.GET("/withdrawals", h.AccountMarket.AdminListWithdrawals)
+		market.PUT("/withdrawals/:id", h.AccountMarket.AdminReviewWithdrawal)
 	}
 }
 
@@ -337,6 +352,7 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		users.PUT("/:id", h.Admin.User.Update)
 		users.DELETE("/:id", h.Admin.User.Delete)
 		users.POST("/:id/balance", h.Admin.User.UpdateBalance)
+		users.POST("/:id/send-email", h.Admin.User.SendEmail)
 		users.GET("/:id/api-keys", h.Admin.User.GetUserAPIKeys)
 		users.GET("/:id/usage", h.Admin.User.GetUserUsage)
 		users.GET("/:id/balance-history", h.Admin.User.GetBalanceHistory)
@@ -469,13 +485,13 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.GET("/:id/models/reasoning", h.Admin.Account.GetModelReasoning)
 		accounts.POST("/:id/models/sync-upstream", h.Admin.Account.SyncUpstreamModels)
 		accounts.POST("/batch", h.Admin.Account.BatchCreate)
+		accounts.POST("/batch-delete", h.Admin.Account.BatchDelete)
 		// 账号导出泄露上游凭证原文——要求 step-up 2FA
 		accounts.GET("/data", gin.HandlerFunc(stepUpAuth), h.Admin.Account.ExportData)
 		accounts.POST("/data", h.Admin.Account.ImportData)
 		accounts.POST("/batch-update-credentials", h.Admin.Account.BatchUpdateCredentials)
 		accounts.POST("/batch-refresh-tier", h.Admin.Account.BatchRefreshTier)
 		accounts.POST("/bulk-update", h.Admin.Account.BulkUpdate)
-		accounts.POST("/batch-delete", h.Admin.Account.BatchDelete)
 		accounts.POST("/batch-clear-error", h.Admin.Account.BatchClearError)
 		accounts.POST("/batch-refresh", h.Admin.Account.BatchRefresh)
 
@@ -575,8 +591,8 @@ func registerAntigravityOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers)
 func registerGrokOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	grok := admin.Group("/grok")
 	{
-		grok.GET("/oauth/capabilities", h.Admin.GrokOAuth.GetCapabilities)
 		grok.POST("/oauth/auth-url", h.Admin.GrokOAuth.GenerateAuthURL)
+		grok.GET("/oauth/capabilities", h.Admin.GrokOAuth.GetCapabilities)
 		grok.POST("/oauth/exchange-code", h.Admin.GrokOAuth.ExchangeCode)
 		grok.POST("/oauth/refresh-token", h.Admin.GrokOAuth.RefreshToken)
 		grok.POST("/oauth/sso-token", h.Admin.GrokOAuth.ValidateSSOToken)
@@ -651,6 +667,18 @@ func registerPromoCodeRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	}
 }
 
+func registerLotteryRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	lotteries := admin.Group("/lottery-campaigns")
+	{
+		lotteries.GET("", h.Admin.Lottery.List)
+		lotteries.POST("", h.Admin.Lottery.Create)
+		lotteries.GET("/:id", h.Admin.Lottery.Get)
+		lotteries.POST("/:id/stop", h.Admin.Lottery.Stop)
+		lotteries.DELETE("/:id", h.Admin.Lottery.Delete)
+		lotteries.GET("/:id/winners", h.Admin.Lottery.Winners)
+	}
+}
+
 func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	adminSettings := admin.Group("/settings")
 	{
@@ -675,6 +703,8 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// 429默认回避配置
 		adminSettings.GET("/rate-limit-429-cooldown", h.Admin.Setting.GetRateLimit429CooldownSettings)
 		adminSettings.PUT("/rate-limit-429-cooldown", h.Admin.Setting.UpdateRateLimit429CooldownSettings)
+		adminSettings.GET("/openai-403-protection", h.Admin.Setting.GetOpenAI403ProtectionSettings)
+		adminSettings.PUT("/openai-403-protection", h.Admin.Setting.UpdateOpenAI403ProtectionSettings)
 		// OpenAI OAuth image-tool unavailable cooldown configuration
 		adminSettings.GET("/openai-images-oauth-unavailable-cooldown", h.Admin.Setting.GetOpenAIImagesOAuthUnavailableCooldownSettings)
 		adminSettings.PUT("/openai-images-oauth-unavailable-cooldown", h.Admin.Setting.UpdateOpenAIImagesOAuthUnavailableCooldownSettings)
@@ -909,6 +939,15 @@ func registerPelicanShowcaseRoutes(admin *gin.RouterGroup, h *handler.Handlers) 
 	admin.GET("/pelican-group-test-results/:id", h.Admin.PelicanGroupTest.GetResult)
 }
 
+func registerIntelligenceTestRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	tests := admin.Group("/intelligence-tests")
+	{
+		tests.GET("", h.Admin.IntelligenceTest.Get)
+		tests.PUT("", h.Admin.IntelligenceTest.Update)
+		tests.POST("/:group_id/run", h.Admin.IntelligenceTest.Run)
+	}
+}
+
 func registerErrorPassthroughRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	rules := admin.Group("/error-passthrough-rules")
 	{
@@ -1071,7 +1110,6 @@ func channelMonitorAdminFeatureGuard(settingService *service.SettingService) gin
 	}
 }
 
-// channelMonitorModeV2Guard requires feature enabled and channel_monitor_mode=v2.
 func channelMonitorModeV2Guard(settingService *service.SettingService) gin.HandlerFunc {
 	return channelMonitorModeGuard(settingService, service.ChannelMonitorRuntime.V2Active)
 }
@@ -1088,13 +1126,13 @@ func channelMonitorModeGuard(settingService *service.SettingService, allowed fun
 			c.Abort()
 			return
 		}
-		rt := settingService.GetChannelMonitorRuntime(c.Request.Context())
-		if !rt.Enabled {
+		runtime := settingService.GetChannelMonitorRuntime(c.Request.Context())
+		if !runtime.Enabled {
 			response.ErrorFrom(c, service.ErrChannelMonitorDisabled)
 			c.Abort()
 			return
 		}
-		if !allowed(rt) {
+		if !allowed(runtime) {
 			response.ErrorFrom(c, service.ErrChannelMonitorModeMismatch)
 			c.Abort()
 			return

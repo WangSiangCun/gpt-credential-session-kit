@@ -3,7 +3,7 @@
     <div class="mx-auto max-w-2xl space-y-6">
       <!-- Current Balance Card -->
       <div class="card overflow-hidden">
-        <div class="bg-gradient-to-br from-primary-500 to-primary-600 px-6 py-8 text-center">
+        <div class="redeem-balance-banner px-6 py-8 text-center">
           <div
             class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm"
           >
@@ -374,6 +374,7 @@ import { useSubscriptionStore } from '@/stores/subscriptions'
 import { redeemAPI, authAPI, type RedeemHistoryItem } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { extractI18nErrorMessage } from '@/utils/apiError'
 import { formatDateTime } from '@/utils/format'
 
 const { t } = useI18n()
@@ -512,10 +513,15 @@ const handleRedeem = async () => {
 
     // Show success toast
     appStore.showSuccess(t('redeem.codeRedeemSuccess'))
-  } catch (error: any) {
-    errorMessage.value = error.response?.data?.detail || t('redeem.failedToRedeem')
-
-    appStore.showError(t('redeem.redeemFailed'))
+  } catch (error: unknown) {
+    const message = extractI18nErrorMessage(
+      error,
+      t,
+      'redeem.errors',
+      t('redeem.failedToRedeem'),
+    )
+    errorMessage.value = message
+    appStore.showError(message)
   } finally {
     submitting.value = false
   }
@@ -533,6 +539,10 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.redeem-balance-banner {
+  background: linear-gradient(135deg, #31244f 0%, #211c34 52%, #111419 100%);
+}
+
 .fade-enter-active,
 .fade-leave-active {
   transition: all 0.3s ease;

@@ -17,12 +17,7 @@ import (
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
-// OmittedSettingKeys marks setting keys the caller's payload never carried.
-// SystemSettings is a plain struct, so a field the caller omitted arrives as a
-// zero value and is indistinguishable from a deliberate clear. Listing the key
-// here drops it from the write, leaving the stored value in place.
-//
-// A nil or empty set keeps whole-document semantics: every key is written.
+// OmittedSettingKeys marks fields absent from a partial settings payload.
 type OmittedSettingKeys map[string]struct{}
 
 func (o OmittedSettingKeys) dropFrom(updates map[string]string) {
@@ -162,6 +157,10 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	if err := validateExcelBPSImageCapacity(settings.ExcelBPSImageBodyLimitMiB, settings.ExcelBPSImageBudgetMiB, settings.ExcelBPSImageMaxRequests); err != nil {
 		return nil, err
 	}
+	settings.AvailableChannelsAccountsVisible = normalizeAvailableChannelsAccountsVisible(
+		settings.AvailableChannelsQuotaVisible,
+		settings.AvailableChannelsAccountsVisible,
+	)
 	if err := s.validateDefaultSubscriptionGroups(ctx, settings.DefaultSubscriptions); err != nil {
 		return nil, err
 	}
@@ -407,9 +406,18 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyDocURL] = settings.DocURL
 	updates[SettingKeyHomeContent] = settings.HomeContent
 	updates[SettingKeyCompactHomeEnabled] = strconv.FormatBool(settings.CompactHomeEnabled)
+	updates[SettingKeyQQGroupEnabled] = strconv.FormatBool(settings.QQGroupEnabled)
+	updates[SettingKeyQQGroupQRCode] = settings.QQGroupQRCode
+	updates[SettingKeyQQGroupDescription] = strings.TrimSpace(settings.QQGroupDescription)
 	updates[SettingKeyHideCcsImportButton] = strconv.FormatBool(settings.HideCcsImportButton)
 	updates[SettingKeyPurchaseSubscriptionEnabled] = strconv.FormatBool(settings.PurchaseSubscriptionEnabled)
 	updates[SettingKeyPurchaseSubscriptionURL] = strings.TrimSpace(settings.PurchaseSubscriptionURL)
+	updates[SettingKeyCloudCatStoreURL] = strings.TrimSpace(settings.CloudCatStoreURL)
+	cloudCatPlansJSON, err := json.Marshal(settings.CloudCatPlans)
+	if err != nil {
+		return nil, fmt.Errorf("marshal cloudcat plans: %w", err)
+	}
+	updates[SettingKeyCloudCatPlans] = string(cloudCatPlansJSON)
 	tableDefaultPageSize, tablePageSizeOptions := normalizeTablePreferences(
 		settings.TableDefaultPageSize,
 		settings.TablePageSizeOptions,
@@ -480,6 +488,15 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	if v := clampChannelMonitorInterval(settings.ChannelMonitorDefaultIntervalSeconds); v > 0 {
 		updates[SettingKeyChannelMonitorDefaultIntervalSeconds] = strconv.Itoa(v)
 	}
+
+	// Available channels feature switch
+	updates[SettingKeyAvailableChannelsEnabled] = strconv.FormatBool(settings.AvailableChannelsEnabled)
+	updates[SettingKeyAvailableChannelsQuotaVisible] = strconv.FormatBool(settings.AvailableChannelsQuotaVisible)
+	updates[SettingKeyAvailableChannelsAccountsVisible] = strconv.FormatBool(settings.AvailableChannelsAccountsVisible)
+	updates[SettingKeyAvailableChannelsCacheHitRateVisible] = strconv.FormatBool(settings.AvailableChannelsCacheHitRateVisible)
+	updates[SettingKeyAvailableChannelsTimelineEnabled] = strconv.FormatBool(settings.AvailableChannelsTimelineEnabled)
+	updates[SettingKeyAvailableChannelsTimelineRequestCount] = strconv.Itoa(clampAvailableChannelsTimelineRequestCount(settings.AvailableChannelsTimelineRequestCount))
+	updates[SettingKeyAvailableChannelsTimelineRefreshSeconds] = strconv.Itoa(clampAvailableChannelsTimelineRefreshSeconds(settings.AvailableChannelsTimelineRefreshSeconds))
 	updates[SettingKeyChannelMonitorHideThroughput] = strconv.FormatBool(settings.ChannelMonitorHideThroughput)
 	updates[SettingKeyChannelMonitorShowQuota] = strconv.FormatBool(settings.ChannelMonitorShowQuota)
 	updates[SettingKeyChannelMonitorHideUserRanking] = strconv.FormatBool(settings.ChannelMonitorHideUserRanking)

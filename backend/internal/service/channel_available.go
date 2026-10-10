@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"math"
 	"sort"
 	"strings"
 )
@@ -37,6 +38,258 @@ type AvailableChannel struct {
 	RestrictModels     bool
 	Groups             []AvailableGroupRef
 	SupportedModels    []SupportedModel
+}
+
+// ChannelQuotaSummary is the aggregate remaining quota for accounts attached
+// to the groups visible to the current user. Account details never leave the
+// service boundary.
+type ChannelQuotaSummary struct {
+	RemainingPercent float64
+	AccountCount     int
+}
+
+// PublicChannelAccount is the strict, read-only account projection allowed to
+// leave the service boundary. It intentionally contains only the compact
+// account summary needed by the user-facing channel view.
+type PublicChannelAccount struct {
+	Name                  string
+	Email                 string
+	PlanType              string
+	OfficialDirect        bool
+	Status                string
+	Available             bool
+	QuotaRemainingPercent *float64
+}
+
+// GetPublicAccounts returns sanitized summaries for unique accounts attached
+// to the supplied groups. The caller is responsible for enforcing the runtime
+// visibility switch.
+func (s *ChannelService) GetPublicAccounts(ctx context.Context, groupIDs []int64) ([]PublicChannelAccount, error) {
+	if len(groupIDs) == 0 || s.groupRepo == nil || s.quotaAccountRepo == nil {
+		return []PublicChannelAccount{}, nil
+	}
+
+	accountIDs, err := s.groupRepo.GetAccountIDsByGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list public channel account ids: %w", err)
+	}
+	accountIDs = uniquePositiveInt64s(accountIDs)
+	if len(accountIDs) == 0 {
+		return []PublicChannelAccount{}, nil
+	}
+
+	accounts, err := s.quotaAccountRepo.GetByIDs(ctx, accountIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load public channel accounts: %w", err)
+	}
+
+	out := make([]PublicChannelAccount, 0, len(accounts))
+	for _, account := range accounts {
+		if account == nil || strings.TrimSpace(account.Name) == "" {
+			continue
+		}
+		out = append(out, buildPublicChannelAccount(account))
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
+	})
+	return out, nil
+}
+
+func buildPublicChannelAccount(account *Account) PublicChannelAccount {
+	out := PublicChannelAccount{
+		Name:           strings.TrimSpace(account.Name),
+		Email:          firstAccountString(account.Extra, account.Credentials, "email_address", "email"),
+		PlanType:       firstNonEmpty(mapString(account.Credentials, "plan_type"), mapString(account.Extra, "subscription_tier")),
+		OfficialDirect: account.IsPublicOfficialDirect(),
+		Status:         account.Status,
+		Available:      account.IsSchedulable(),
+	}
+	if remaining, ok := accountRemainingQuotaPercent(account); ok {
+		out.QuotaRemainingPercent = &remaining
+	}
+	return out
+}
+
+func mapString(values map[string]any, key string) string {
+	if values == nil {
+		return ""
+	}
+	value, ok := values[key].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(value)
+}
+
+func firstAccountString(primary, secondary map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value := mapString(primary, key); value != "" {
+			return value
+		}
+		if value := mapString(secondary, key); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+// GetQuotaSummary averages the remaining percentage of unique, enabled
+// accounts attached to the supplied groups. Accounts without a trustworthy
+// quota snapshot are excluded instead of being treated as fully available.
+func (s *ChannelService) GetQuotaSummary(ctx context.Context, groupIDs []int64) (*ChannelQuotaSummary, error) {
+	if len(groupIDs) == 0 || s.groupRepo == nil || s.quotaAccountRepo == nil {
+		return nil, nil
+	}
+
+	accountIDs, err := s.groupRepo.GetAccountIDsByGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, fmt.Errorf("list channel quota account ids: %w", err)
+	}
+	accountIDs = uniquePositiveInt64s(accountIDs)
+	if len(accountIDs) == 0 {
+		return nil, nil
+	}
+
+	accounts, err := s.quotaAccountRepo.GetByIDs(ctx, accountIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load channel quota accounts: %w", err)
+	}
+
+	var total float64
+	count := 0
+	for _, account := range accounts {
+		if account == nil || !account.IsActive() || !account.Schedulable {
+			continue
+		}
+		remaining, ok := accountRemainingQuotaPercent(account)
+		if !ok {
+			continue
+		}
+		total += remaining
+		count++
+	}
+	if count == 0 {
+		return nil, nil
+	}
+
+	return &ChannelQuotaSummary{
+		RemainingPercent: math.Round(clampPercent(total/float64(count))*10) / 10,
+		AccountCount:     count,
+	}, nil
+}
+
+func uniquePositiveInt64s(values []int64) []int64 {
+	unique := make([]int64, 0, len(values))
+	seen := make(map[int64]struct{}, len(values))
+	for _, value := range values {
+		if value <= 0 {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		unique = append(unique, value)
+	}
+	return unique
+}
+
+func accountRemainingQuotaPercent(account *Account) (float64, bool) {
+	if account == nil {
+		return 0, false
+	}
+
+	remaining := make([]float64, 0, 6)
+	appendLimitRemaining := func(limit, used float64, expired bool) {
+		if limit <= 0 {
+			return
+		}
+		if expired {
+			used = 0
+		}
+		remaining = append(remaining, 100-(used/limit)*100)
+	}
+
+	appendLimitRemaining(account.GetQuotaLimit(), account.GetQuotaUsed(), false)
+	appendLimitRemaining(account.GetQuotaDailyLimit(), account.GetQuotaDailyUsed(), account.IsDailyQuotaPeriodExpired())
+	appendLimitRemaining(account.GetQuotaWeeklyLimit(), account.GetQuotaWeeklyUsed(), account.IsWeeklyQuotaPeriodExpired())
+
+	if used, ok := maxAccountExtraNumber(account.Extra,
+		"codex_primary_used_percent",
+		"codex_secondary_used_percent",
+		"codex_5h_used_percent",
+		"codex_7d_used_percent",
+	); ok {
+		remaining = append(remaining, 100-used)
+	}
+
+	if utilization, ok := maxAccountExtraNumber(account.Extra,
+		"session_window_utilization",
+		"passive_usage_7d_utilization",
+		"passive_usage_7d_oi_utilization",
+	); ok {
+		// Anthropic utilization snapshots are persisted as fractions.
+		if utilization <= 1 {
+			utilization *= 100
+		}
+		remaining = append(remaining, 100-utilization)
+	}
+
+	if billing, err := grokBillingSnapshotFromExtra(account.Extra); err == nil && billing != nil {
+		usedValues := make([]float64, 0, 2)
+		if billing.UsagePercent != nil {
+			usedValues = append(usedValues, *billing.UsagePercent)
+		}
+		if billing.UsedPercent != nil {
+			usedValues = append(usedValues, *billing.UsedPercent)
+		}
+		if len(usedValues) > 0 {
+			remaining = append(remaining, 100-maxFloat64(usedValues))
+		}
+	}
+
+	if len(remaining) == 0 {
+		return 0, false
+	}
+	return clampPercent(minFloat64(remaining)), true
+}
+
+func maxAccountExtraNumber(extra map[string]any, keys ...string) (float64, bool) {
+	values := make([]float64, 0, len(keys))
+	for _, key := range keys {
+		if value, ok := resolveAccountExtraNumber(extra, key); ok && !math.IsNaN(value) && !math.IsInf(value, 0) {
+			values = append(values, value)
+		}
+	}
+	if len(values) == 0 {
+		return 0, false
+	}
+	return maxFloat64(values), true
+}
+
+func minFloat64(values []float64) float64 {
+	minimum := values[0]
+	for _, value := range values[1:] {
+		if value < minimum {
+			minimum = value
+		}
+	}
+	return minimum
+}
+
+func maxFloat64(values []float64) float64 {
+	maximum := values[0]
+	for _, value := range values[1:] {
+		if value > maximum {
+			maximum = value
+		}
+	}
+	return maximum
+}
+
+func clampPercent(value float64) float64 {
+	return math.Max(0, math.Min(100, value))
 }
 
 // ListAvailable 返回所有渠道的可用视图：每个渠道附带关联分组信息与支持模型列表。

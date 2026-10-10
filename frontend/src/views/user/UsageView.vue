@@ -1,10 +1,10 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
+    <div class="usage-page space-y-6">
       <UsageStatsCards :stats="usageStats" :show-account-cost="false" :strike-standard-cost="true" />
 
       <div class="space-y-4">
-        <div class="card p-4">
+        <div class="card usage-filter-panel usage-date-filter-panel p-4">
           <div class="flex flex-wrap items-center gap-4">
             <div class="flex items-center gap-2">
               <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
@@ -66,7 +66,7 @@
         </div>
       </div>
 
-      <div class="card p-6">
+      <div class="card usage-filter-panel usage-actions-panel p-6">
         <div class="flex flex-wrap items-end justify-between gap-4">
           <div v-if="activeTab === 'errors'" class="flex flex-1 flex-wrap items-end gap-4">
             <div class="w-full sm:w-auto sm:min-w-[220px]">
@@ -915,3 +915,183 @@ watch(endpointDistributionSource, () => {
   // Endpoint source switching is handled by the chart component using already loaded stats.
 })
 </script>
+
+<style scoped>
+.usage-page {
+  --usage-purple: #8b5cf6;
+  --usage-purple-bright: #a78bfa;
+  --usage-panel: #1b1d28;
+  --usage-panel-alt: #222632;
+  --usage-line: #46506a;
+  --usage-line-strong: #6f5bb0;
+}
+
+:global(.usage-page .usage-filter-panel),
+:global(.usage-page .usage-chart-card),
+:global(.usage-page .usage-stat-card),
+:global(.usage-page .usage-table-shell) {
+  border: 3px solid var(--usage-line) !important;
+  border-radius: 0 !important;
+  background: var(--usage-panel) !important;
+  background-image: none !important;
+  box-shadow: 4px 4px 0 #090b10 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+:global(.usage-page .usage-stat-card) {
+  min-height: 128px;
+  padding: 20px !important;
+}
+
+:global(.usage-page .usage-stat-card > div:first-child) {
+  border-radius: 0 !important;
+  border: 3px solid rgba(139, 92, 246, 0.42);
+  box-shadow: 3px 3px 0 #090b10;
+}
+
+:global(.usage-page .usage-filter-panel) {
+  padding: 20px !important;
+}
+
+:global(.usage-page .usage-actions-panel) {
+  padding: 24px !important;
+}
+
+:global(.usage-page .usage-chart-card) {
+  min-height: 360px;
+  padding: 20px !important;
+}
+
+:global(.usage-page .usage-chart-card h3) {
+  color: #ffffff !important;
+  font-family: var(--mc-dark-pixel, 'PoolPixelCN', monospace) !important;
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  line-height: 1.5 !important;
+  -webkit-font-smoothing: none !important;
+}
+
+:global(.usage-page .usage-chart-card .h-48) {
+  height: 220px !important;
+}
+
+:global(.usage-page .usage-chart-card .w-48) {
+  width: 220px !important;
+}
+
+:global(.usage-page .usage-chart-card .inline-flex.rounded-lg) {
+  padding: 3px !important;
+  border: 3px solid var(--usage-line-strong) !important;
+  border-radius: 0 !important;
+  background: #151822 !important;
+  box-shadow: 3px 3px 0 #090b10 !important;
+}
+
+:global(.usage-page .usage-chart-card .inline-flex.rounded-lg button) {
+  min-height: 32px;
+  padding: 6px 11px !important;
+  border: 1px solid transparent !important;
+  border-radius: 0 !important;
+  font-family: var(--mc-dark-pixel, 'PoolPixelCN', monospace) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  -webkit-font-smoothing: none !important;
+}
+
+:global(.usage-page .usage-chart-card .inline-flex.rounded-lg button[class*="bg-white"]),
+:global(.usage-page .usage-chart-card .inline-flex.rounded-lg button[class*="dark:bg-dark-700"]) {
+  border-color: var(--usage-purple) !important;
+  background: var(--usage-purple) !important;
+  color: #ffffff !important;
+  box-shadow: 2px 2px 0 #443078 !important;
+}
+
+:global(.usage-page .usage-chart-card table) {
+  font-family: var(--mc-dark-sans, sans-serif) !important;
+  font-size: 13px !important;
+}
+
+:global(.usage-page .usage-chart-card table th) {
+  padding-bottom: 10px !important;
+  color: #ffffff !important;
+  font-family: var(--mc-dark-pixel, 'PoolPixelCN', monospace) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  -webkit-font-smoothing: none !important;
+}
+
+:global(.usage-page .usage-chart-card table td) {
+  padding-top: 9px !important;
+  padding-bottom: 9px !important;
+  border-color: #333b4c !important;
+}
+
+:global(.usage-page .usage-table-shell) {
+  overflow: hidden;
+}
+
+:global(.usage-page .usage-table-shell table th) {
+  min-height: 48px;
+  padding-top: 14px !important;
+  padding-bottom: 14px !important;
+  background: #29253f !important;
+  color: #ffffff !important;
+  font-family: var(--mc-dark-pixel, 'PoolPixelCN', monospace) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  -webkit-font-smoothing: none !important;
+}
+
+:global(.usage-page .usage-table-shell table td) {
+  padding-top: 14px !important;
+  padding-bottom: 14px !important;
+  border-color: #303848 !important;
+  font-family: var(--mc-dark-sans, sans-serif) !important;
+  font-size: 14px !important;
+}
+
+:global(.usage-page .usage-table-shell tbody tr:nth-child(even)) {
+  background: #202431 !important;
+}
+
+:global(.usage-page .usage-table-shell tbody tr:hover) {
+  background: #2a2940 !important;
+}
+
+:global(.usage-page .usage-filter-panel .input-label) {
+  margin-bottom: 7px;
+  color: #f0eaff !important;
+  font-family: var(--mc-dark-pixel, 'PoolPixelCN', monospace) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  -webkit-font-smoothing: none !important;
+}
+
+:global(.usage-page .usage-filter-panel .select-trigger),
+:global(.usage-page .usage-filter-panel .date-picker-trigger) {
+  min-height: 44px;
+  border: 3px solid var(--usage-line) !important;
+  border-radius: 0 !important;
+  background: #151822 !important;
+  box-shadow: 3px 3px 0 #090b10 !important;
+}
+
+:global(.usage-page .usage-filter-panel .select-value),
+:global(.usage-page .usage-filter-panel .date-picker-value) {
+  color: #f5f2ff !important;
+  font-size: 13px !important;
+}
+
+:global(.usage-page .usage-filter-panel .btn) {
+  min-height: 44px;
+  padding-right: 16px !important;
+  padding-left: 16px !important;
+}
+
+@media (max-width: 900px) {
+  :global(.usage-page .usage-chart-card) { min-height: 320px; }
+  :global(.usage-page .usage-chart-card .h-48) { height: 190px !important; }
+  :global(.usage-page .usage-chart-card .w-48) { width: 190px !important; }
+}
+</style>

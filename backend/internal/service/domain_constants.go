@@ -244,6 +244,7 @@ const (
 	SettingKeyLoginAgreementUpdatedAt             = "login_agreement_updated_at"            // 条款更新日期（展示用）
 	SettingKeyLoginAgreementDocuments             = "login_agreement_documents"             // 条款文档列表（JSON，Markdown 内容）
 	SettingKeyCyberPolicyUserAllowlist            = "cyber_policy_user_allowlist"           // Platform user IDs with log-only cyber handling
+	SettingKeyIntelligenceTestConfig              = "intelligence_test_config"
 
 	// 邮件服务设置
 	SettingKeySMTPHost     = "smtp_host"      // SMTP服务器地址
@@ -390,6 +391,11 @@ const (
 	SettingKeyTablePageSizeOptions        = "table_page_size_options"       // 表格可选每页条数（JSON 数组）
 	SettingKeyCustomMenuItems             = "custom_menu_items"             // 自定义菜单项（JSON 数组）
 	SettingKeyCustomEndpoints             = "custom_endpoints"              // 自定义端点列表（JSON 数组）
+	SettingKeyQQGroupEnabled              = "qq_group_enabled"
+	SettingKeyQQGroupQRCode               = "qq_group_qr_code"
+	SettingKeyQQGroupDescription          = "qq_group_description"
+	SettingKeyCloudCatStoreURL            = "cloudcat_store_url"
+	SettingKeyCloudCatPlans               = "cloudcat_plans"
 
 	// 默认配置
 	SettingKeyDefaultConcurrency   = "default_concurrency"    // 新用户默认并发量
@@ -547,7 +553,13 @@ const (
 	// SettingKeyAvailableChannelsEnabled is a DB-backed soft switch for the "Available Channels"
 	// user-facing aggregate view. When false: user endpoint returns an empty list and the
 	// sidebar entry is hidden. Defaults to false (opt-in feature).
-	SettingKeyAvailableChannelsEnabled = "available_channels_enabled"
+	SettingKeyAvailableChannelsEnabled                = "available_channels_enabled"
+	SettingKeyAvailableChannelsQuotaVisible           = "available_channels_quota_visible"
+	SettingKeyAvailableChannelsAccountsVisible        = "available_channels_accounts_visible"
+	SettingKeyAvailableChannelsCacheHitRateVisible    = "available_channels_cache_hit_rate_visible"
+	SettingKeyAvailableChannelsTimelineEnabled        = "available_channels_timeline_enabled"
+	SettingKeyAvailableChannelsTimelineRequestCount   = "available_channels_timeline_request_count"
+	SettingKeyAvailableChannelsTimelineRefreshSeconds = "available_channels_timeline_refresh_seconds"
 
 	// SettingKeyPelicanShowcaseEnabled is a DB-backed soft switch for the user-facing
 	// Pelican gallery (scheduled Pelican HTML results of selected groups). When false the
@@ -591,6 +603,7 @@ const (
 	// SettingKeyUpstreamBillingProbeSettings stores the global enable switch and interval
 	// for probing remote Sub2API API-key billing metadata.
 	SettingKeyUpstreamBillingProbeSettings = "upstream_billing_probe_settings"
+	SettingKeyOpenAI403ProtectionSettings  = "openai_403_protection_settings"
 
 	// SettingKeyOllamaCloudUsageSettings stores the opt-in global runner switch and interval.
 	SettingKeyOllamaCloudUsageSettings = "ollama_cloud_usage_settings"

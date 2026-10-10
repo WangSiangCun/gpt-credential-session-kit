@@ -764,6 +764,35 @@ func (s *SettingService) SetRateLimit429CooldownSettings(ctx context.Context, se
 	return s.settingRepo.Set(ctx, SettingKeyRateLimit429CooldownSettings, string(data))
 }
 
+func (s *SettingService) GetOpenAI403ProtectionSettings(ctx context.Context) (*OpenAI403ProtectionSettings, error) {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyOpenAI403ProtectionSettings)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return DefaultOpenAI403ProtectionSettings(), nil
+		}
+		return nil, fmt.Errorf("get OpenAI 403 protection settings: %w", err)
+	}
+	if value == "" {
+		return DefaultOpenAI403ProtectionSettings(), nil
+	}
+
+	var settings OpenAI403ProtectionSettings
+	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+		return DefaultOpenAI403ProtectionSettings(), nil
+	}
+	defaults := DefaultOpenAI403ProtectionSettings()
+	if settings.ThresholdCount < 1 || settings.ThresholdCount > 20 {
+		settings.ThresholdCount = defaults.ThresholdCount
+	}
+	if settings.ThresholdWindowMinutes < 1 || settings.ThresholdWindowMinutes > 1440 {
+		settings.ThresholdWindowMinutes = defaults.ThresholdWindowMinutes
+	}
+	if settings.CooldownMinutes < 1 || settings.CooldownMinutes > 1440 {
+		settings.CooldownMinutes = defaults.CooldownMinutes
+	}
+	return &settings, nil
+}
+
 func (s *SettingService) GetOpenAIImagesOAuthUnavailableCooldownSettings(ctx context.Context) (*OpenAIImagesOAuthUnavailableCooldownSettings, error) {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyOpenAIImagesOAuthUnavailableCooldownSettings)
 	if err != nil {
@@ -782,6 +811,27 @@ func (s *SettingService) GetOpenAIImagesOAuthUnavailableCooldownSettings(ctx con
 		return DefaultOpenAIImagesOAuthUnavailableCooldownSettings(), nil
 	}
 	return &settings, nil
+}
+
+func (s *SettingService) SetOpenAI403ProtectionSettings(ctx context.Context, settings *OpenAI403ProtectionSettings) error {
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+	if settings.ThresholdCount < 1 || settings.ThresholdCount > 20 {
+		return fmt.Errorf("threshold_count must be between 1-20")
+	}
+	if settings.ThresholdWindowMinutes < 1 || settings.ThresholdWindowMinutes > 1440 {
+		return fmt.Errorf("threshold_window_minutes must be between 1-1440")
+	}
+	if settings.CooldownMinutes < 1 || settings.CooldownMinutes > 1440 {
+		return fmt.Errorf("cooldown_minutes must be between 1-1440")
+	}
+
+	data, err := json.Marshal(settings)
+	if err != nil {
+		return fmt.Errorf("marshal OpenAI 403 protection settings: %w", err)
+	}
+	return s.settingRepo.Set(ctx, SettingKeyOpenAI403ProtectionSettings, string(data))
 }
 
 func (s *SettingService) SetOpenAIImagesOAuthUnavailableCooldownSettings(ctx context.Context, settings *OpenAIImagesOAuthUnavailableCooldownSettings) error {

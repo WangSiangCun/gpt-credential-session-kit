@@ -247,6 +247,56 @@ func (h *SettingHandler) UpdatePanelRateLimitSettings(c *gin.Context) {
 
 // GetStreamTimeoutSettings 获取流超时处理配置
 // GET /api/v1/admin/settings/stream-timeout
+func (h *SettingHandler) GetOpenAI403ProtectionSettings(c *gin.Context) {
+	settings, err := h.settingService.GetOpenAI403ProtectionSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.OpenAI403ProtectionSettings{
+		Enabled:                settings.Enabled,
+		ThresholdCount:         settings.ThresholdCount,
+		ThresholdWindowMinutes: settings.ThresholdWindowMinutes,
+		CooldownMinutes:        settings.CooldownMinutes,
+	})
+}
+
+type UpdateOpenAI403ProtectionSettingsRequest struct {
+	Enabled                bool `json:"enabled"`
+	ThresholdCount         int  `json:"threshold_count"`
+	ThresholdWindowMinutes int  `json:"threshold_window_minutes"`
+	CooldownMinutes        int  `json:"cooldown_minutes"`
+}
+
+func (h *SettingHandler) UpdateOpenAI403ProtectionSettings(c *gin.Context) {
+	var req UpdateOpenAI403ProtectionSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	settings := &service.OpenAI403ProtectionSettings{
+		Enabled:                req.Enabled,
+		ThresholdCount:         req.ThresholdCount,
+		ThresholdWindowMinutes: req.ThresholdWindowMinutes,
+		CooldownMinutes:        req.CooldownMinutes,
+	}
+	if err := h.settingService.SetOpenAI403ProtectionSettings(c.Request.Context(), settings); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	updated, err := h.settingService.GetOpenAI403ProtectionSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.OpenAI403ProtectionSettings{
+		Enabled:                updated.Enabled,
+		ThresholdCount:         updated.ThresholdCount,
+		ThresholdWindowMinutes: updated.ThresholdWindowMinutes,
+		CooldownMinutes:        updated.CooldownMinutes,
+	})
+}
+
 func (h *SettingHandler) GetStreamTimeoutSettings(c *gin.Context) {
 	settings, err := h.settingService.GetStreamTimeoutSettings(c.Request.Context())
 	if err != nil {

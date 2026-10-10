@@ -1730,6 +1730,21 @@ func (s *OpenAIGatewayService) handleOpenAIStreamTerminalAccountSideEffects(
 		if !openAIStream403AccountFailure(payload, message) {
 			return statusCode, false
 		}
+		// A structured credential failure transported with HTTP/SSE 403 is still
+		// an authentication failure. Route its account side effects through the
+		// 401 path so an invalid credential is disabled immediately, while keeping
+		// the original 403 status returned to the client.
+		if openAIStreamCredentialAuthFailure(payload) {
+			ctx := context.Background()
+			if c != nil && c.Request != nil {
+				ctx = c.Request.Context()
+			}
+			model := firstNonEmpty(canonicalModel...)
+			if model == "" {
+				model = firstNonEmpty(gjson.GetBytes(payload, "model").String(), gjson.GetBytes(payload, "response.model").String())
+			}
+			return statusCode, s.handleOpenAIAccountUpstreamError(ctx, account, http.StatusUnauthorized, headers, payload, model)
+		}
 		fallthrough
 	case http.StatusUnauthorized, http.StatusTooManyRequests, 529:
 		ctx := context.Background()

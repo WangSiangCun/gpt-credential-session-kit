@@ -76,7 +76,9 @@ export default {
       copiedHint: 'Copied to clipboard',
       clickToCopy: 'Click to copy this endpoint',
       speedTest: 'Speed Test',
-    },
+
+"count": "{count}"
+},
     allGroups: 'All Groups',
     allStatus: 'All Status',
     columnSettings: 'Column Settings',
@@ -242,23 +244,23 @@ export default {
       },
       grok: {
         description:
-          'Configure Grok CLI, Claude Code, Codex, or OpenCode to send requests through your Sub2API Grok group. Text models use Responses; image/video use Imagine model IDs on media endpoints.',
+          "Configure Grok Build, Claude Code, Codex, or OpenCode to send requests through your Sub2API Grok group.",
         claudeDescription: 'Configure Claude Code to send Messages API traffic through your Sub2API Grok group.',
         codexDescription: 'Configure Codex to send Responses API traffic through your Sub2API Grok group.',
         configTomlHint:
-          'Official path: ~/.grok/config.toml (or $GROK_HOME). Fill [endpoints] (models_base_url / models_list_url / xai_api_base_url / cli_chat_proxy_base_url), [auth] preferred_method=api_key, [models], [session], and [features] image/video overrides. Prefer env_key over api_key; every text model needs api_backend=responses. Back up before merge, then run grok inspect.',
+          "Back up an existing config.toml before merging this model entry. Run grok inspect after saving to verify the effective configuration.",
         codexConfigTomlHint:
-          'Official Codex: wire_api = "responses" only; prefer env_key over experimental_bearer_token; supports_websockets = false for non-OpenAI gateways (Sub2API can still accept client WS and bridge to HTTP/SSE). Back up ~/.codex/config.toml before merge.',
+          "Back up an existing config.toml before merging this provider configuration.",
         note:
-          'Export GROK_MODELS_BASE_URL and XAI_API_KEY, save the full config.toml (endpoints/auth/models/session/features) as ~/.grok/config.toml, run grok inspect, then /model grok-4.5 (or grok-build-0.1 for coding).',
+          "Save the file as ~/.grok/config.toml, then run grok inspect and select grok from /model.",
         noteWindows:
-          'Set GROK_MODELS_BASE_URL and XAI_API_KEY, save the full config.toml as %USERPROFILE%\\.grok\\config.toml, run grok inspect, then /model grok-4.5 (or grok-build-0.1 for coding).',
+          "Save the file as %USERPROFILE%\\.grok\\config.toml, then run grok inspect and select grok from /model.",
         claudeNote:
-          'Choose one method: terminal env for this session, or ~/.claude/settings.json for persistence. Do not commit files that contain your API key.',
+          "Choose one method: run the terminal commands for the current session, or save settings.json for user-level persistent configuration.",
         codexNote:
-          'Export SUB2API_API_KEY, save config.toml under ~/.codex (mkdir -p ~/.codex). Prefer env_key auth; do not commit secrets.',
+          "Save config.toml under ~/.codex and set SUB2API_API_KEY before starting Codex.",
         codexNoteWindows:
-          'Set $env:SUB2API_API_KEY, save config.toml under %USERPROFILE%\\.codex. Prefer env_key auth; do not commit secrets.',
+          "Save config.toml under %USERPROFILE%\\.codex and set SUB2API_API_KEY in PowerShell before starting Codex.",
       },
       deepseek: {
         description: 'Configure Claude Code, Codex, or OpenCode through the current DeepSeek group.',
@@ -366,7 +368,10 @@ export default {
       quota_exhausted: 'Quota Exhausted',
       expired: 'Expired',
     },
-  },
+
+"imageSkill": "Image Skill",
+"downloadImageSkill": "Download PoolAI Image Skill"
+},
 
   // Usage
   usage: {
@@ -531,7 +536,19 @@ export default {
         loadFailed: 'Failed to load detail, please try again',
       },
     },
-  },
+
+"latencyQueue": "Queue",
+"latencyHeaders": "Upstream headers",
+"latencyEvent": "First upstream event",
+"viewCyberContext": "View full cyber-policy context",
+"cyberContextTitle": "Cyber-policy context",
+"cyberFullContext": "Full context (unredacted)",
+"cyberContextNotFound": "No full context was saved for this request. Records that failed before the fix are unavailable.",
+"cyberContextLoadFailed": "Failed to load the cyber-policy context.",
+"upstreamStatus": "Upstream status",
+"upstreamAccount": "Upstream account",
+"upstreamReason": "Block reason"
+},
 
   // Shared keys for channel monitor (admin + user views)
   monitorCommon: {
@@ -714,7 +731,7 @@ export default {
 
   // Available Channels (user-facing)
   availableChannels: {
-    title: 'Available Channels',
+    title: "Available Channels / Accounts",
     description: 'Channels you can access, along with their supported models and pricing',
     searchPlaceholder: 'Search channels or models...',
     empty: 'No available channels',
@@ -730,7 +747,9 @@ export default {
       platform: 'Platform',
       groups: 'Your Accessible Groups',
       supportedModels: 'Supported Models'
-    },
+    ,
+"accounts": "Channel Accounts"
+},
     pricing: {
       billingMode: 'Billing Mode',
       billingModeToken: 'Per Token',
@@ -752,7 +771,59 @@ export default {
       unitPerMillion: '/ 1M tokens',
       unitPerRequest: '/ request'
     }
-  },
+  ,
+"platformFilterLabel": "Platform",
+"platformFilterAll": "All",
+"platformFilterOpenAI": "OpenAI",
+"platformFilterClaude": "Claude",
+"remainingQuota": "Remaining quota",
+"accountAvailable": "Available",
+"accountUnavailable": "Temporarily unavailable",
+"cacheHitRate": "Average cache hit rate",
+"cacheHitRateHelp": "The share of cache-read tokens in input tokens plus cache-read tokens across recent requests.",
+"timeline": {
+      "channelScope": "CHANNEL",
+      "title": "Recent request status",
+      "helpLabel": "View recent request status details",
+      "help": "Each segment represents one request, up to the latest {count}; if fewer records exist, only the loaded requests are shown. Green means success and red means failure. Average TTFT uses successful requests with TTFT data. Average request cost uses the actual user charge across this sample, with failed requests counted as $0.",
+      "refresh": "Refresh every {seconds}s",
+      "averageFirstToken": "Average TTFT",
+      "averageCost": "Average request cost",
+      "samples": "Requests loaded",
+      "empty": "No request history",
+      "past": "Past",
+      "now": "Now",
+      "success": "Success",
+      "failed": "Failed",
+      "segmentTitle": "Segment {index} · {state} · TTFT {ttft}",
+      "ariaLabel": "Recent channel request success and failure timeline"
+    },
+"account": {
+      "channelAccounts": "Channel Accounts",
+      "channelAccountsHint": "One channel can contain multiple accounts",
+      "remainingQuota": "Remaining Quota",
+      "platformType": "Platform / Type",
+      "plan": "Plan / Auth",
+      "status": "Status",
+      "schedulable": "Schedulable",
+      "concurrency": "Concurrency",
+      "priority": "Priority",
+      "rateMultiplier": "Rate Multiplier",
+      "groups": "Groups",
+      "proxy": "Proxy",
+      "quota": "Quota",
+      "lastUsed": "Last Used",
+      "createdAt": "Created At",
+      "expiresAt": "Expires At",
+      "notes": "Notes",
+      "error": "Error",
+      "total": "Total",
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "yes": "Yes",
+      "no": "No"
+    }
+},
 
   // Model Plaza (public group/model pricing showcase)
   modelPlaza: {
@@ -793,7 +864,7 @@ export default {
       tierHint: 'The whole request is billed at the tier matching its total context (input + cache write + cache read)',
       tierHintMarginal: 'Only the portion above the threshold is billed at this tier; output is unaffected',
       reasoningMultiplierBadge: '{effort} ×{multiplier}',
-      reasoningMultiplierHint: 'When the forwarded reasoning effort is {effort}, billing and quota usage for the request are multiplied by {multiplier}. Unconfigured levels use 1×',
+      reasoningMultiplierHint: "Reasoning effort {effort} applies multiplier {multiplier}",
       marginalBadge: 'excess-only tiers',
       timePricingRowHint: 'Requests made within this period ({timezone} time) are billed at the prices in this row',
       timePricingRowHintWeekdays:
@@ -810,7 +881,10 @@ export default {
       perUnitImage: '/ image',
       perRequest: 'Per request',
       perImage: 'Per image'
-    },
+    ,
+"maxReasoningMultiplierBadge": "Max ×{multiplier}",
+"maxReasoningMultiplierHint": "When the forwarded reasoning effort is max, billing and quota usage for the request are multiplied by {multiplier}"
+},
     nav: {
       login: 'Sign In',
       backToDashboard: 'Back to Console'
@@ -907,7 +981,19 @@ export default {
     userRefreshFailed: 'Redeemed successfully, but failed to refresh account information.',
     subscriptionRefreshFailed: 'Redeemed successfully, but failed to refresh subscription status.',
     pleaseEnterCode: 'Please enter a redeem code'
-  },
+  ,
+"errors": {
+      "REDEEM_BATCH_ALREADY_USED": "You have already redeemed a code from this batch.",
+      "REDEEM_GLOBAL_ALREADY_USED": "This account has already redeemed a globally limited code.",
+      "REDEEM_CODE_USED": "This redeem code has already been used.",
+      "REDEEM_CODE_EXPIRED": "This redeem code has expired.",
+      "REDEEM_CODE_NOT_FOUND": "Redeem code not found. Please check the code and try again.",
+      "REDEEM_CODE_LOCKED": "This redeem code is being processed. Please try again shortly.",
+      "REDEEM_RATE_LIMITED": "Too many attempts. Please try again later.",
+      "REDEEM_CODE_UNSUPPORTED_TYPE": "This type of redeem code cannot be used here.",
+      "REDEEM_CODE_INVALID": "This redeem code is configured incorrectly. Please contact support."
+    }
+},
 
   // Profile
   profile: {
@@ -1163,4 +1249,119 @@ export default {
   },
 
   // Admin
+
+"leaderboards": {
+    "kicker": "ADMIN // RANKING GRID",
+    "title": "Leaderboards",
+    "description": "Rank users, models, groups, and keys by a selected time range",
+    "liveData": "Live data",
+    "from": "From",
+    "to": "To",
+    "top": "Show",
+    "refresh": "Refresh leaderboard",
+    "periodTotal": "Period total",
+    "rank": "Rank",
+    "loading": "Reading statistics...",
+    "empty": "No ranking data in this range",
+    "loadFailed": "Failed to load leaderboard",
+    "presets": {
+      "today": "Today",
+      "sevenDays": "7 days",
+      "thirtyDays": "30 days",
+      "custom": "Custom"
+    },
+    "secondary": {
+      "requests": "requests",
+      "tokens": "tokens"
+    },
+    "boards": {
+      "spending": {
+        "label": "User Spending",
+        "category": "USER // COST",
+        "subject": "User",
+        "metric": "Actual cost",
+        "hint": "Ranked by actual deducted cost"
+      },
+      "requests": {
+        "label": "User Requests",
+        "category": "USER // TRAFFIC",
+        "subject": "User",
+        "metric": "Requests",
+        "hint": "Ranked by request volume"
+      },
+      "tokens": {
+        "label": "User Tokens",
+        "category": "USER // TOKENS",
+        "subject": "User",
+        "metric": "Total tokens",
+        "hint": "Ranked by total token usage"
+      },
+      "models": {
+        "label": "Model Usage",
+        "category": "MODEL // USAGE",
+        "subject": "Model",
+        "metric": "Actual cost",
+        "hint": "Compare model usage and cost"
+      },
+      "groups": {
+        "label": "Group Usage",
+        "category": "GROUP // USAGE",
+        "subject": "Group",
+        "metric": "Actual cost",
+        "hint": "Compare group traffic and cost"
+      },
+      "apiKeys": {
+        "label": "Key Requests",
+        "category": "KEY // TRAFFIC",
+        "subject": "API key",
+        "metric": "Requests",
+        "hint": "Rank API keys by request volume"
+      },
+      "balances": {
+        "label": "User Balance",
+        "category": "USER // BALANCE",
+        "subject": "User",
+        "metric": "Current balance",
+        "hint": "Rank users by current balance"
+      }
+    },
+    "detail": {
+      "noModels": "No models configured for this group",
+      "noPricing": "Pricing not configured",
+      "peakNote": "Peak hours {window}: billing rate ×{multiplier}",
+      "longContextDisabledNote": "Long-context tier pricing is disabled for this group: requests above the threshold are billed at the base tier; official tiers are for reference only"
+    },
+    "table": {
+      "model": "Model",
+      "input": "Input",
+      "output": "Output",
+      "cache": "Cache",
+      "cacheWrite": "Write",
+      "cacheRead": "Read",
+      "cacheWriteShort": "W",
+      "cacheReadShort": "R",
+      "tierHint": "The whole request is billed at the tier matching its total context (input + cache write + cache read)",
+      "tierHintMarginal": "Only the portion above the threshold is billed at this tier; output is unaffected",
+      "maxReasoningMultiplierBadge": "Max ×{multiplier}",
+      "maxReasoningMultiplierHint": "When the forwarded reasoning effort is max, billing and quota usage for the request are multiplied by {multiplier}",
+      "marginalBadge": "excess-only tiers",
+      "timePricingRowHint": "Requests made within this period ({timezone} time) are billed at the prices in this row",
+      "timePricingRowHintWeekdays": "On weekdays (Mon–Fri) only, requests made within this period ({timezone} time) are billed at the prices in this row; weekends use the standard prices",
+      "timePricingRowHintPeak": "; prices in this row exclude the peak-hour rate — where this period overlaps the peak hours {window}, the overlapping portion is additionally multiplied by ×{multiplier}",
+      "timePricingWeekdays": "Weekdays",
+      "timePricingRateHint": "Effective rate {rate} × period multiplier {multiplier}",
+      "paidPrice": "Your Price (Discounted)",
+      "officialPrice": "Official Price",
+      "rate": "Rate",
+      "unitPerMillion": "$ / 1M tokens",
+      "perUnitRequest": "/ request",
+      "perUnitImage": "/ image",
+      "perRequest": "Per request",
+      "perImage": "Per image"
+    },
+    "nav": {
+      "login": "Sign In",
+      "backToDashboard": "Back to Console"
+    }
+  }
 }

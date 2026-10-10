@@ -214,6 +214,54 @@ func (_u *RedeemCodeUpdate) AddValidityDays(v int) *RedeemCodeUpdate {
 	return _u
 }
 
+// SetBatchID sets the "batch_id" field.
+func (_u *RedeemCodeUpdate) SetBatchID(v string) *RedeemCodeUpdate {
+	_u.mutation.SetBatchID(v)
+	return _u
+}
+
+// SetNillableBatchID sets the "batch_id" field if the given value is not nil.
+func (_u *RedeemCodeUpdate) SetNillableBatchID(v *string) *RedeemCodeUpdate {
+	if v != nil {
+		_u.SetBatchID(*v)
+	}
+	return _u
+}
+
+// ClearBatchID clears the value of the "batch_id" field.
+func (_u *RedeemCodeUpdate) ClearBatchID() *RedeemCodeUpdate {
+	_u.mutation.ClearBatchID()
+	return _u
+}
+
+// SetBatchUserOnce sets the "batch_user_once" field.
+func (_u *RedeemCodeUpdate) SetBatchUserOnce(v bool) *RedeemCodeUpdate {
+	_u.mutation.SetBatchUserOnce(v)
+	return _u
+}
+
+// SetNillableBatchUserOnce sets the "batch_user_once" field if the given value is not nil.
+func (_u *RedeemCodeUpdate) SetNillableBatchUserOnce(v *bool) *RedeemCodeUpdate {
+	if v != nil {
+		_u.SetBatchUserOnce(*v)
+	}
+	return _u
+}
+
+// SetGlobalUserOnce sets the "global_user_once" field.
+func (_u *RedeemCodeUpdate) SetGlobalUserOnce(v bool) *RedeemCodeUpdate {
+	_u.mutation.SetGlobalUserOnce(v)
+	return _u
+}
+
+// SetNillableGlobalUserOnce sets the "global_user_once" field if the given value is not nil.
+func (_u *RedeemCodeUpdate) SetNillableGlobalUserOnce(v *bool) *RedeemCodeUpdate {
+	if v != nil {
+		_u.SetGlobalUserOnce(*v)
+	}
+	return _u
+}
+
 // SetUserID sets the "user" edge to the User entity by ID.
 func (_u *RedeemCodeUpdate) SetUserID(id int64) *RedeemCodeUpdate {
 	_u.mutation.SetUserID(id)
@@ -299,6 +347,11 @@ func (_u *RedeemCodeUpdate) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.BatchID(); ok {
+		if err := redeemcode.BatchIDValidator(v); err != nil {
+			return &ValidationError{Name: "batch_id", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.batch_id": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -352,6 +405,18 @@ func (_u *RedeemCodeUpdate) sqlSave(ctx context.Context) (_node int, err error) 
 	}
 	if value, ok := _u.mutation.AddedValidityDays(); ok {
 		_spec.AddField(redeemcode.FieldValidityDays, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.BatchID(); ok {
+		_spec.SetField(redeemcode.FieldBatchID, field.TypeString, value)
+	}
+	if _u.mutation.BatchIDCleared() {
+		_spec.ClearField(redeemcode.FieldBatchID, field.TypeString)
+	}
+	if value, ok := _u.mutation.BatchUserOnce(); ok {
+		_spec.SetField(redeemcode.FieldBatchUserOnce, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.GlobalUserOnce(); ok {
+		_spec.SetField(redeemcode.FieldGlobalUserOnce, field.TypeBool, value)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -615,6 +680,54 @@ func (_u *RedeemCodeUpdateOne) AddValidityDays(v int) *RedeemCodeUpdateOne {
 	return _u
 }
 
+// SetBatchID sets the "batch_id" field.
+func (_u *RedeemCodeUpdateOne) SetBatchID(v string) *RedeemCodeUpdateOne {
+	_u.mutation.SetBatchID(v)
+	return _u
+}
+
+// SetNillableBatchID sets the "batch_id" field if the given value is not nil.
+func (_u *RedeemCodeUpdateOne) SetNillableBatchID(v *string) *RedeemCodeUpdateOne {
+	if v != nil {
+		_u.SetBatchID(*v)
+	}
+	return _u
+}
+
+// ClearBatchID clears the value of the "batch_id" field.
+func (_u *RedeemCodeUpdateOne) ClearBatchID() *RedeemCodeUpdateOne {
+	_u.mutation.ClearBatchID()
+	return _u
+}
+
+// SetBatchUserOnce sets the "batch_user_once" field.
+func (_u *RedeemCodeUpdateOne) SetBatchUserOnce(v bool) *RedeemCodeUpdateOne {
+	_u.mutation.SetBatchUserOnce(v)
+	return _u
+}
+
+// SetNillableBatchUserOnce sets the "batch_user_once" field if the given value is not nil.
+func (_u *RedeemCodeUpdateOne) SetNillableBatchUserOnce(v *bool) *RedeemCodeUpdateOne {
+	if v != nil {
+		_u.SetBatchUserOnce(*v)
+	}
+	return _u
+}
+
+// SetGlobalUserOnce sets the "global_user_once" field.
+func (_u *RedeemCodeUpdateOne) SetGlobalUserOnce(v bool) *RedeemCodeUpdateOne {
+	_u.mutation.SetGlobalUserOnce(v)
+	return _u
+}
+
+// SetNillableGlobalUserOnce sets the "global_user_once" field if the given value is not nil.
+func (_u *RedeemCodeUpdateOne) SetNillableGlobalUserOnce(v *bool) *RedeemCodeUpdateOne {
+	if v != nil {
+		_u.SetGlobalUserOnce(*v)
+	}
+	return _u
+}
+
 // SetUserID sets the "user" edge to the User entity by ID.
 func (_u *RedeemCodeUpdateOne) SetUserID(id int64) *RedeemCodeUpdateOne {
 	_u.mutation.SetUserID(id)
@@ -713,6 +826,11 @@ func (_u *RedeemCodeUpdateOne) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.BatchID(); ok {
+		if err := redeemcode.BatchIDValidator(v); err != nil {
+			return &ValidationError{Name: "batch_id", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.batch_id": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -783,6 +901,18 @@ func (_u *RedeemCodeUpdateOne) sqlSave(ctx context.Context) (_node *RedeemCode, 
 	}
 	if value, ok := _u.mutation.AddedValidityDays(); ok {
 		_spec.AddField(redeemcode.FieldValidityDays, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.BatchID(); ok {
+		_spec.SetField(redeemcode.FieldBatchID, field.TypeString, value)
+	}
+	if _u.mutation.BatchIDCleared() {
+		_spec.ClearField(redeemcode.FieldBatchID, field.TypeString)
+	}
+	if value, ok := _u.mutation.BatchUserOnce(); ok {
+		_spec.SetField(redeemcode.FieldBatchUserOnce, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.GlobalUserOnce(); ok {
+		_spec.SetField(redeemcode.FieldGlobalUserOnce, field.TypeBool, value)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{

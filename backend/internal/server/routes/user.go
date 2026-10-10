@@ -25,6 +25,11 @@ func RegisterUserRoutes(
 	// 用户管理面变更类操作入审计（含 TOTP 启用/禁用、step-up 验证、密码修改等安全事件）
 	authenticated.Use(gin.HandlerFunc(auditLog))
 	{
+		// 智力测试结果（只读，配置与执行接口仍由管理员路由保护）
+		if h.Admin != nil && h.Admin.IntelligenceTest != nil {
+			authenticated.GET("/intelligence-tests", h.Admin.IntelligenceTest.GetPublic)
+		}
+
 		// 用户接口
 		user := authenticated.Group("/user")
 		{
@@ -95,6 +100,7 @@ func RegisterUserRoutes(
 		channels := authenticated.Group("/channels")
 		{
 			channels.GET("/available", h.AvailableChannel.List)
+			channels.GET("/request-timeline", h.AvailableChannel.RequestTimeline)
 		}
 
 		// 使用记录（聚合统计属重查询，叠加更严格的按用户限流）
@@ -140,6 +146,34 @@ func RegisterUserRoutes(
 		{
 			redeem.POST("", h.Redeem.Redeem)
 			redeem.GET("/history", h.Redeem.GetHistory)
+		}
+
+		lotteries := authenticated.Group("/lotteries")
+		{
+			lotteries.GET("", h.Lottery.List)
+			lotteries.GET("/campaigns/:id/winners", h.Lottery.Winners)
+			lotteries.GET("/:token", h.Lottery.GetCampaign)
+			lotteries.POST("/:token/draw", h.Lottery.Draw)
+		}
+
+		accountMarket := authenticated.Group("/account-market")
+		{
+			accountMarket.GET("/config", h.AccountMarket.GetPublicConfig)
+			accountMarket.GET("/proxies", h.AccountMarket.ListProxies)
+			accountMarket.POST("/oauth/generate-auth-url", h.AccountMarket.GenerateOAuthURL)
+			accountMarket.POST("/oauth/exchange-code", h.AccountMarket.ExchangeOAuthCode)
+			accountMarket.POST("/upload", panelRateLimiter.Heavy(), h.AccountMarket.Upload)
+			accountMarket.GET("/accounts", h.AccountMarket.ListAccounts)
+			accountMarket.POST("/accounts/:id/quota/refresh", panelRateLimiter.Heavy(), h.AccountMarket.RefreshOpenAIQuota)
+			accountMarket.POST("/accounts/:id/reset-quota", panelRateLimiter.Heavy(), h.AccountMarket.ResetOpenAIQuota)
+			accountMarket.PUT("/accounts/:id", h.AccountMarket.UpdateAccount)
+			accountMarket.PUT("/accounts/:id/schedulable", h.AccountMarket.SetSchedulable)
+			accountMarket.GET("/accounts/:id/export", h.AccountMarket.Export)
+			accountMarket.DELETE("/accounts/:id", h.AccountMarket.Remove)
+			accountMarket.GET("/summary", h.AccountMarket.Summary)
+			accountMarket.GET("/withdrawals", h.AccountMarket.ListWithdrawals)
+			accountMarket.POST("/withdrawals", h.AccountMarket.RequestWithdrawal)
+			accountMarket.POST("/withdrawals/:id/cancel", h.AccountMarket.CancelWithdrawal)
 		}
 
 		// 用户订阅

@@ -68,6 +68,7 @@ func TestGatewayHandlerKeyBillingInfoUsesGroupRate(t *testing.T) {
 	groupID := int64(7)
 	apiKey := &service.APIKey{
 		UserID:  11,
+		User:    &service.User{ID: 11, Balance: 23.45, FrozenBalance: 2},
 		GroupID: &groupID,
 		Key:     "sk-sensitive-value",
 		Group: &service.Group{
@@ -96,6 +97,8 @@ func TestGatewayHandlerKeyBillingInfoUsesGroupRate(t *testing.T) {
 	require.Nil(t, got.PeakRateMultiplier)
 	require.Nil(t, got.AppliedPeakMultiplier)
 	require.Equal(t, 0.75, got.EffectiveRateMultiplier)
+	require.Equal(t, 23.45, got.BalanceRemaining)
+	require.Equal(t, "USD", got.BalanceCurrency)
 	require.Nil(t, got.Timezone)
 	require.False(t, got.ObservedAt.IsZero())
 	var fields map[string]json.RawMessage
@@ -108,6 +111,7 @@ func TestGatewayHandlerKeyBillingInfoUsesGroupRate(t *testing.T) {
 	require.NotContains(t, fields, "timezone")
 	require.NotContains(t, w.Body.String(), apiKey.Key)
 	require.NotContains(t, w.Body.String(), apiKey.Group.Name)
+	require.NotContains(t, w.Body.String(), "frozen_balance")
 }
 
 func TestGatewayHandlerKeyBillingInfoUsesUserOverride(t *testing.T) {

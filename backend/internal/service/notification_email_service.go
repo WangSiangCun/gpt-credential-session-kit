@@ -27,6 +27,7 @@ const (
 	NotificationEmailEventSubscriptionExpiryReminder  = "subscription.expiry_reminder"
 	NotificationEmailEventBalanceLow                  = "balance.low"
 	NotificationEmailEventBalanceRechargeSuccess      = "balance.recharge_success"
+	NotificationEmailEventBalanceAdminRecharge        = "balance.admin_recharge"
 	NotificationEmailEventAccountQuotaAlert           = "account.quota_alert"
 	NotificationEmailEventContentModerationViolation  = "content_moderation.violation_notice"
 	NotificationEmailEventContentModerationDisabled   = "content_moderation.account_disabled"
@@ -445,8 +446,12 @@ func (s *NotificationEmailService) RememberRecipientLocale(ctx context.Context, 
 }
 
 func (s *NotificationEmailService) ResolveRecipientLocale(ctx context.Context, userID int64, email string) string {
+	return s.ResolveRecipientLocaleWithFallback(ctx, userID, email, notificationEmailDefaultLocale)
+}
+
+func (s *NotificationEmailService) ResolveRecipientLocaleWithFallback(ctx context.Context, userID int64, email, fallback string) string {
 	if s == nil || s.settingRepo == nil {
-		return notificationEmailDefaultLocale
+		return normalizeNotificationLocale(fallback)
 	}
 	if userID > 0 {
 		if locale, err := s.settingRepo.GetValue(ctx, notificationEmailLocaleUserKeyPrefix+strconv.FormatInt(userID, 10)); err == nil && strings.TrimSpace(locale) != "" {
@@ -458,7 +463,7 @@ func (s *NotificationEmailService) ResolveRecipientLocale(ctx context.Context, u
 			return normalizeNotificationLocale(locale)
 		}
 	}
-	return notificationEmailDefaultLocale
+	return normalizeNotificationLocale(fallback)
 }
 
 func (s *NotificationEmailService) IsUnsubscribed(ctx context.Context, email, event string) (bool, error) {
@@ -913,6 +918,7 @@ func notificationEmailSampleVariables(locale string) map[string]string {
 			"recharge_url":        "https://example.com/recharge",
 			"recharge_amount":     "50.00",
 			"order_id":            "1024",
+			"adjustment_id":       "ADM-1024",
 			"unsubscribe_url":     "https://example.com/unsubscribe",
 			"account_id":          "1001",
 			"account_name":        "openai-main",
@@ -961,6 +967,7 @@ func notificationEmailSampleVariables(locale string) map[string]string {
 		"recharge_url":        "https://example.com/recharge",
 		"recharge_amount":     "50.00",
 		"order_id":            "1024",
+		"adjustment_id":       "ADM-1024",
 		"unsubscribe_url":     "https://example.com/unsubscribe",
 		"account_id":          "1001",
 		"account_name":        "openai-main",
@@ -1028,6 +1035,7 @@ var notificationEmailEventOrder = []string{
 	NotificationEmailEventSubscriptionExpiryReminder,
 	NotificationEmailEventBalanceLow,
 	NotificationEmailEventBalanceRechargeSuccess,
+	NotificationEmailEventBalanceAdminRecharge,
 	NotificationEmailEventAccountQuotaAlert,
 	NotificationEmailEventContentModerationViolation,
 	NotificationEmailEventContentModerationDisabled,
@@ -1092,6 +1100,14 @@ var notificationEmailEventDefinitions = map[string]NotificationEmailEventInfo{
 		Category:     "billing",
 		Optional:     false,
 		Placeholders: append(append([]string{}, notificationEmailCommonPlaceholders...), "recharge_amount", "current_balance", "order_id"),
+	},
+	NotificationEmailEventBalanceAdminRecharge: {
+		Event:        NotificationEmailEventBalanceAdminRecharge,
+		Label:        "Admin balance recharge",
+		Description:  "Sent after an administrator directly adds balance to a user.",
+		Category:     "billing",
+		Optional:     false,
+		Placeholders: append(append([]string{}, notificationEmailCommonPlaceholders...), "recharge_amount", "current_balance", "adjustment_id"),
 	},
 	NotificationEmailEventAccountQuotaAlert: {
 		Event:       NotificationEmailEventAccountQuotaAlert,
@@ -1290,6 +1306,24 @@ var notificationEmailOfficialTemplates = map[string]map[string]notificationEmail
 <p>您的余额充值 <strong>${{recharge_amount}}</strong> 已完成。</p>
 <p>当前余额：<strong>${{current_balance}}</strong></p>
 			<p>订单号：{{order_id}}</p>`),
+		},
+	},
+	NotificationEmailEventBalanceAdminRecharge: {
+		notificationEmailDefaultLocale: {
+			Subject: "[{{site_name}}] Balance added to your account",
+			HTML: notificationEmailCard("#16a34a", "Balance added", `
+<p>Hello {{recipient_name}},</p>
+<p>An administrator has added <strong>${{recharge_amount}}</strong> to your account.</p>
+<p>Current balance: <strong>${{current_balance}}</strong></p>
+<p>Adjustment ID: {{adjustment_id}}</p>`),
+		},
+		notificationEmailLocaleChinese: {
+			Subject: "[{{site_name}}] 管理员充值已到账",
+			HTML: notificationEmailCard("#16a34a", "管理员充值已到账", `
+<p>{{recipient_name}}，您好：</p>
+<p>管理员已为您的账户充值 <strong>${{recharge_amount}}</strong>。</p>
+<p>当前余额：<strong>${{current_balance}}</strong></p>
+<p>调整记录号：{{adjustment_id}}</p>`),
 		},
 	},
 	NotificationEmailEventAccountQuotaAlert: {
@@ -1632,26 +1666,37 @@ func notificationEmailOpsScheduledReportTemplate(locale string) string {
 
 func notificationEmailCard(accent, title, content string) string {
 	return `<!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { margin: 0; padding: 24px; background: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #18181b; }
-    .container { max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 30px rgba(15, 23, 42, 0.10); }
-    .header { background: ` + accent + `; color: #ffffff; padding: 28px 32px; }
-    .header h1 { margin: 0; font-size: 24px; line-height: 1.25; }
-    .content { padding: 32px; font-size: 15px; line-height: 1.7; }
-    .button { display: inline-block; margin-top: 12px; padding: 11px 18px; border-radius: 8px; background: ` + accent + `; color: #ffffff; text-decoration: none; font-weight: 600; }
-    .muted { color: #71717a; font-size: 13px; }
-    .footer { padding: 18px 32px; background: #fafafa; color: #a1a1aa; font-size: 12px; }
+    body { margin: 0; padding: 24px 12px; background: #0d1018; color: #d8def0; font-family: "Courier New", Consolas, monospace; }
+    .pixel-wrap { max-width: 680px; margin: 0 auto; padding: 6px; background: #141927; border: 2px solid #536184; box-shadow: 6px 6px 0 #080a10; }
+    .container { border: 2px solid #29344f; background: #171c2b; }
+    .header { padding: 22px 26px; background: #202941; border-bottom: 3px solid ` + accent + `; }
+    .brand { margin-bottom: 14px; color: #8df0c2; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; }
+    .brand-mark { display: inline-block; margin-right: 8px; padding: 2px 5px; border: 2px solid #8df0c2; color: #171c2b; background: #8df0c2; font-weight: 700; }
+    .header h1 { margin: 0; color: #ffffff; font-size: 22px; line-height: 1.35; letter-spacing: 1px; }
+    .content { padding: 28px 26px; background: #171c2b; font-size: 14px; line-height: 1.8; }
+    .content p { margin: 0 0 16px; }
+    .content strong { color: #ffffff; }
+    .content table { border: 2px solid #3b486a; }
+    .content td { padding: 8px 10px; border-bottom: 1px solid #303b59; }
+    .content td:first-child { color: #8f9cbd; }
+    .button { display: inline-block; margin-top: 12px; padding: 10px 16px; border: 2px solid ` + accent + `; border-radius: 0; background: ` + accent + `; color: #ffffff; text-decoration: none; font-weight: 700; box-shadow: 3px 3px 0 #080a10; }
+    .muted { color: #8f9cbd; font-size: 12px; }
+    .footer { padding: 16px 26px; border-top: 2px solid #29344f; background: #111522; color: #7784a5; font-size: 11px; line-height: 1.6; }
+    @media screen and (max-width: 520px) { body { padding: 12px 6px; } .header, .content, .footer { padding-left: 16px; padding-right: 16px; } .header h1 { font-size: 18px; } }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header"><h1>` + title + `</h1></div>
-    <div class="content">` + content + `</div>
-    <div class="footer">This email was sent by {{site_name}}. Please do not reply directly.</div>
+  <div class="pixel-wrap">
+    <div class="container">
+      <div class="header"><div class="brand"><span class="brand-mark">&gt;_</span>{{site_name}}</div><h1>` + title + `</h1></div>
+      <div class="content">` + content + `</div>
+      <div class="footer">此邮件由 {{site_name}} 自动发送，请勿直接回复。<br>System notification // PoolAI</div>
+    </div>
   </div>
 </body>
 </html>`

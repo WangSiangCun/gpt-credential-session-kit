@@ -20,6 +20,12 @@ export interface DefaultSubscriptionSetting {
   validity_days: number;
 }
 
+export interface CloudCatPlan {
+  amount: number;
+  pay_amount: number;
+  image: string;
+}
+
 // ── 平台限额类型 ──────────────────────────────────────────────────
 /** 可设置默认限额的平台：平台清单中的全部具体平台（与后端 AllowedQuotaPlatforms 同源）。 */
 export type PlatformType = AccountPlatform
@@ -802,6 +808,18 @@ export interface SystemSettings {
   excel_bps_image_storage_mib: number;
   excel_bps_image_storage_entries: number;
   excel_bps_image_ttl_minutes: number;
+
+  qq_group_enabled?: boolean;
+  qq_group_qr_code?: string;
+  qq_group_description?: string;
+  cloudcat_store_url: string;
+  cloudcat_plans: CloudCatPlan[];
+  available_channels_quota_visible: boolean;
+  available_channels_accounts_visible: boolean;
+  available_channels_cache_hit_rate_visible: boolean;
+  available_channels_timeline_enabled: boolean;
+  available_channels_timeline_request_count: number;
+  available_channels_timeline_refresh_seconds: number;
 }
 
 export interface UpdateSettingsRequest {
@@ -1152,6 +1170,18 @@ export interface UpdateSettingsRequest {
   excel_bps_image_storage_mib?: number;
   excel_bps_image_storage_entries?: number;
   excel_bps_image_ttl_minutes?: number;
+
+  qq_group_enabled?: boolean;
+  qq_group_qr_code?: string;
+  qq_group_description?: string;
+  cloudcat_store_url?: string;
+  cloudcat_plans?: CloudCatPlan[];
+  available_channels_quota_visible?: boolean;
+  available_channels_accounts_visible?: boolean;
+  available_channels_cache_hit_rate_visible?: boolean;
+  available_channels_timeline_enabled?: boolean;
+  available_channels_timeline_request_count?: number;
+  available_channels_timeline_refresh_seconds?: number;
 }
 
 /**
@@ -1174,6 +1204,10 @@ export async function updateSettings(
   const { data } = await apiClient.put<SystemSettings>(
     "/admin/settings",
     settings,
+    // The settings screen submits all configuration sections together. Large
+    // policy/prompt payloads can exceed the global 30-second client timeout on
+    // slower connections even though the server is still processing them.
+    { timeout: 120000 },
   );
   return data;
 }
@@ -1402,6 +1436,26 @@ export async function updateOverloadCooldownSettings(
   return data;
 }
 
+// ==================== Panel API Rate Limit Settings ====================
+
+export interface PanelRateLimitSettings {
+  enabled: boolean;
+  user_rpm: number;
+  heavy_rpm: number;
+  exempt_admin: boolean;
+  public_ip_rpm: number;
+}
+
+export async function getPanelRateLimitSettings(): Promise<PanelRateLimitSettings> {
+  const { data } = await apiClient.get<PanelRateLimitSettings>("/admin/settings/panel-rate-limit");
+  return data;
+}
+
+export async function updatePanelRateLimitSettings(settings: PanelRateLimitSettings): Promise<PanelRateLimitSettings> {
+  const { data } = await apiClient.put<PanelRateLimitSettings>("/admin/settings/panel-rate-limit", settings);
+  return data;
+}
+
 // ==================== 429 Rate Limit Cooldown Settings ====================
 
 export interface RateLimit429CooldownSettings {
@@ -1426,33 +1480,25 @@ export async function updateRateLimit429CooldownSettings(
   return data;
 }
 
-// ==================== Panel Rate Limit Settings ====================
-
-/**
- * Panel API rate limit settings.
- * Authenticated panel endpoints are limited per user account (reverse-proxy
- * safe); public endpoints are limited per publicly routable client IP.
- */
-export interface PanelRateLimitSettings {
+export interface OpenAI403ProtectionSettings {
   enabled: boolean;
-  user_rpm: number;
-  heavy_rpm: number;
-  exempt_admin: boolean;
-  public_ip_rpm: number;
+  threshold_count: number;
+  threshold_window_minutes: number;
+  cooldown_minutes: number;
 }
 
-export async function getPanelRateLimitSettings(): Promise<PanelRateLimitSettings> {
-  const { data } = await apiClient.get<PanelRateLimitSettings>(
-    "/admin/settings/panel-rate-limit",
+export async function getOpenAI403ProtectionSettings(): Promise<OpenAI403ProtectionSettings> {
+  const { data } = await apiClient.get<OpenAI403ProtectionSettings>(
+    "/admin/settings/openai-403-protection",
   );
   return data;
 }
 
-export async function updatePanelRateLimitSettings(
-  settings: PanelRateLimitSettings,
-): Promise<PanelRateLimitSettings> {
-  const { data } = await apiClient.put<PanelRateLimitSettings>(
-    "/admin/settings/panel-rate-limit",
+export async function updateOpenAI403ProtectionSettings(
+  settings: OpenAI403ProtectionSettings,
+): Promise<OpenAI403ProtectionSettings> {
+  const { data } = await apiClient.put<OpenAI403ProtectionSettings>(
+    "/admin/settings/openai-403-protection",
     settings,
   );
   return data;
@@ -1683,10 +1729,12 @@ export const settingsAPI = {
   deleteAdminApiKey,
   getOverloadCooldownSettings,
   updateOverloadCooldownSettings,
-  getRateLimit429CooldownSettings,
-  updateRateLimit429CooldownSettings,
   getPanelRateLimitSettings,
   updatePanelRateLimitSettings,
+  getRateLimit429CooldownSettings,
+  updateRateLimit429CooldownSettings,
+  getOpenAI403ProtectionSettings,
+  updateOpenAI403ProtectionSettings,
   getStreamTimeoutSettings,
   updateStreamTimeoutSettings,
   getRectifierSettings,

@@ -652,8 +652,11 @@ func RedeemCodeFromServiceAdmin(rc *service.RedeemCode) *AdminRedeemCode {
 		return nil
 	}
 	return &AdminRedeemCode{
-		RedeemCode: redeemCodeFromServiceBase(rc),
-		Notes:      rc.Notes,
+		RedeemCode:     redeemCodeFromServiceBase(rc),
+		Notes:          rc.Notes,
+		BatchID:        rc.BatchID,
+		BatchUserOnce:  rc.BatchUserOnce,
+		GlobalUserOnce: rc.GlobalUserOnce,
 	}
 }
 
@@ -679,7 +682,7 @@ func redeemCodeFromServiceBase(rc *service.RedeemCode) RedeemCode {
 
 	// For admin_balance/admin_concurrency types, include notes so users can see
 	// why they were charged or credited by admin
-	if (rc.Type == "admin_balance" || rc.Type == "admin_concurrency") && rc.Notes != "" {
+	if (rc.Type == "admin_balance" || rc.Type == "admin_concurrency" || rc.Type == "lottery_balance") && rc.Notes != "" {
 		out.Notes = &rc.Notes
 	}
 

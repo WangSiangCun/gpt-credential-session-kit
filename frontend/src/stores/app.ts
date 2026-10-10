@@ -26,8 +26,8 @@ export const useAppStore = defineStore('app', () => {
   // Public settings cache state
   const publicSettingsLoaded = ref<boolean>(false)
   const publicSettingsLoading = ref<boolean>(false)
-  const siteName = ref<string>('Sub2API')
-  const siteLogo = ref<string>('')
+  const siteName = ref<string>('PoolAI')
+  const siteLogo = ref<string>('/poolai-logo.svg')
   const siteVersion = ref<string>('')
   const contactInfo = ref<string>('')
   const apiBaseUrl = ref<string>('')
@@ -294,8 +294,8 @@ export const useAppStore = defineStore('app', () => {
       window.__APP_CONFIG__ = { ...config }
     }
     cachedPublicSettings.value = config
-    siteName.value = config.site_name || 'Sub2API'
-    siteLogo.value = config.site_logo || ''
+    siteName.value = config.site_name || 'PoolAI'
+    siteLogo.value = config.site_logo || '/poolai-logo.svg'
     siteVersion.value = config.version || ''
     contactInfo.value = config.contact_info || ''
     apiBaseUrl.value = config.api_base_url || ''
@@ -346,8 +346,15 @@ export const useAppStore = defineStore('app', () => {
         contact_info: contactInfo.value,
         doc_url: docUrl.value,
         home_content: '',
-        compact_home_enabled: false,
+		compact_home_enabled: false,
         hide_ccs_import_button: false,
+        cloudcat_store_url: 'https://catfk.com/shop/5AUO36V9',
+        cloudcat_plans: [
+          { amount: 10, pay_amount: 10, image: '/payment/10.png' },
+          { amount: 20, pay_amount: 20, image: '/payment/20.png' },
+          { amount: 50, pay_amount: 50, image: '/payment/50.png' },
+          { amount: 100, pay_amount: 100, image: '/payment/100.png' },
+        ],
         payment_enabled: false,
         table_default_page_size: 20,
         table_page_size_options: [10, 20, 50, 100],
@@ -373,6 +380,10 @@ export const useAppStore = defineStore('app', () => {
         available_channels_enabled: false,
         subscription_enabled: true,
         payment_balance_disabled: false,
+        available_channels_quota_visible: false,
+        available_channels_accounts_visible: false,
+		available_channels_cache_hit_rate_visible: false,
+        available_channels_timeline_enabled: true,
         model_plaza_enabled: false,
         model_plaza_require_auth: false,
         plugin_management_enabled: false,

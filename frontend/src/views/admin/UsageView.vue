@@ -1,10 +1,10 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
+    <div class="usage-page space-y-6">
       <UsageStatsCards :stats="usageStats" />
       <!-- Charts Section -->
-      <div class="space-y-4">
-        <div class="card p-4">
+      <div class="usage-charts-section space-y-4">
+        <div class="card usage-filter-panel usage-date-filter-panel p-4">
           <div class="flex flex-wrap items-center gap-4">
             <div class="flex items-center gap-2">
               <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
@@ -135,6 +135,7 @@
             :server-side-sort="true"
             :default-sort-key="'created_at'"
             :default-sort-order="'desc'"
+            show-cyber-context
             @sort="handleSort"
             @userClick="handleUserClick"
             @ipGeoBatchFailed="handleIpGeoBatchFailed"

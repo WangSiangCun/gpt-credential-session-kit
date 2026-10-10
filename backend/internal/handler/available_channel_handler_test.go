@@ -27,6 +27,46 @@ func TestUserAvailableChannel_Unauthenticated401(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
+func TestPublicAccountsVisibilityRequiresQuotaSwitch(t *testing.T) {
+	tests := []struct {
+		name            string
+		quotaVisible    bool
+		accountsVisible bool
+		want            bool
+	}{
+		{name: "both switches on", quotaVisible: true, accountsVisible: true, want: true},
+		{name: "quota switch off", quotaVisible: false, accountsVisible: true, want: false},
+		{name: "account switch off", quotaVisible: true, accountsVisible: false, want: false},
+		{name: "both switches off", quotaVisible: false, accountsVisible: false, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, publicAccountsVisible(service.AvailableChannelsRuntime{
+				QuotaVisible:    tt.quotaVisible,
+				AccountsVisible: tt.accountsVisible,
+			}))
+		})
+	}
+}
+
+func TestToUserPublicAccountsOmitsQuotaWhenQuotaDisclosureIsOff(t *testing.T) {
+	remaining := 42.5
+	accounts := toUserPublicAccounts([]service.PublicChannelAccount{{
+		Name:                  "账号一",
+		PlanType:              "pro20x",
+		Status:                service.StatusActive,
+		Available:             true,
+		QuotaRemainingPercent: &remaining,
+	}}, false)
+
+	require.Len(t, accounts, 1)
+	require.Equal(t, "账号一", accounts[0].Name)
+	require.Nil(t, accounts[0].QuotaRemainingPercent)
+	raw, err := json.Marshal(accounts[0])
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "quota_remaining_percent")
+}
+
 func TestFilterUserVisibleGroups_IntersectionOnly(t *testing.T) {
 	// 渠道挂在 {g1, g2, g3}，用户只允许 {g1, g3} —— 响应必须仅含 g1/g3。
 	groups := []service.AvailableGroupRef{
@@ -85,6 +125,10 @@ func TestUserAvailableChannel_FieldWhitelist(t *testing.T) {
 	for _, key := range []string{"id", "status", "billing_model_source", "restrict_models"} {
 		_, exists := decoded[key]
 		require.Falsef(t, exists, "user DTO must not expose %q", key)
+	}
+	for _, key := range []string{"quota_remaining_percent", "quota_account_count"} {
+		_, exists := decoded[key]
+		require.Falsef(t, exists, "quota field %q must be omitted when visibility is disabled", key)
 	}
 	for _, key := range []string{"name", "description", "platforms"} {
 		_, exists := decoded[key]
@@ -147,6 +191,86 @@ func TestUserAvailableChannel_FieldWhitelist(t *testing.T) {
 		require.Truef(t, exists, "user pricing interval must expose %q", key)
 		require.InDelta(t, want, got.(float64), 1e-12)
 	}
+}
+
+func TestUserAvailableChannel_QuotaFieldsIncludedWhenPresent(t *testing.T) {
+	percent := 72.5
+	raw, err := json.Marshal(userAvailableChannel{
+		Name:                  "quota-visible",
+		QuotaRemainingPercent: &percent,
+		Platforms:             []userChannelPlatformSection{},
+	})
+	require.NoError(t, err)
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(raw, &decoded))
+	require.Equal(t, 72.5, decoded["quota_remaining_percent"])
+	_, exists := decoded["quota_account_count"]
+	require.False(t, exists, "user DTO must never expose an account count")
+}
+
+func TestToUserPublicAccounts_KeepsAllChannelPlatformsAndWhitelistsFields(t *testing.T) {
+	percent := 72.5
+	accounts := toUserPublicAccounts([]service.PublicChannelAccount{
+		{Name: "Claude A", Email: "claude@example.com", PlanType: "PRO 20x", OfficialDirect: true, Status: "active", Available: true, QuotaRemainingPercent: &percent},
+		{Name: "OpenAI B", Status: "error", Available: false},
+		{Name: "Gemini C", Status: "active", Available: true},
+	}, true)
+
+	require.Len(t, accounts, 3)
+	require.Equal(t, "Claude A", accounts[0].Name)
+	require.True(t, accounts[0].Available)
+	require.Equal(t, "Gemini C", accounts[2].Name, "accounts from non-visible platforms still belong to the visible channel")
+
+	raw, err := json.Marshal(accounts[0])
+	require.NoError(t, err)
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(raw, &decoded))
+	require.Equal(t, "Claude A", decoded["name"])
+	require.Equal(t, "claude@example.com", decoded["email"])
+	require.Equal(t, "PRO 20x", decoded["plan_type"])
+	require.Equal(t, true, decoded["official_direct"])
+	require.Equal(t, "active", decoded["status"])
+	require.Equal(t, true, decoded["available"])
+	require.Equal(t, 72.5, decoded["quota_remaining_percent"])
+	for _, forbidden := range []string{
+		"id", "notes", "platform", "type", "auth_mode", "privacy_mode",
+		"concurrency", "priority", "rate_multiplier", "schedulable", "error_message",
+		"credentials", "api_key", "token", "cookie", "password", "extra",
+	} {
+		_, exists := decoded[forbidden]
+		require.False(t, exists, "sensitive field %q must not be exposed", forbidden)
+	}
+}
+
+func TestToUserPublicAccounts_OmitsQuotaWhenVisibilityIsDisabled(t *testing.T) {
+	percent := 75.0
+	accounts := toUserPublicAccounts([]service.PublicChannelAccount{
+		{
+			Name:                  "account",
+			Status:                service.StatusActive,
+			Available:             true,
+			QuotaRemainingPercent: &percent,
+		},
+	}, false)
+
+	raw, err := json.Marshal(accounts[0])
+	require.NoError(t, err)
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(raw, &decoded))
+	for _, key := range []string{"quota_remaining_percent", "quota_limit", "quota_used", "quota_daily_limit", "quota_weekly_limit"} {
+		_, exists := decoded[key]
+		require.Falsef(t, exists, "quota field %q must be omitted when visibility is disabled", key)
+	}
+}
+
+func TestAvailableGroupIDs_UsesEveryGroupBoundToChannel(t *testing.T) {
+	groups := []service.AvailableGroupRef{
+		{ID: 10, Platform: "anthropic"},
+		{ID: 20, Platform: "openai"},
+		{ID: 30, Platform: "gemini"},
+	}
+
+	require.Equal(t, []int64{10, 20, 30}, availableGroupIDs(groups))
 }
 
 func TestBuildPlatformSections_GroupsByPlatform(t *testing.T) {

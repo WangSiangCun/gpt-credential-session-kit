@@ -42,6 +42,13 @@ describe('AppSidebar scroll position persistence', () => {
   })
 })
 
+describe('AppSidebar shared account navigation', () => {
+  it('includes activities in the navigation shared by users and the admin My Account section', () => {
+    expect(componentSource).toContain("{ path: '/activities', label: t('nav.activities')")
+    expect(componentSource).toContain('const personalNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(false)))')
+  })
+})
+
 describe('AppSidebar collapsible groups', () => {
   it('lets the user collapse a group even while a child route is active', () => {
     // The expand state must come from the user's override first, falling back

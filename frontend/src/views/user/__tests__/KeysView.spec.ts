@@ -186,6 +186,7 @@ const DataTableStub = {
     <div>
       <div data-test="columns">{{ columns.map((col) => col.key).join(',') }}</div>
       <div data-test="columns-meta">{{ JSON.stringify(columns.map((col) => ({ key: col.key, sortable: !!col.sortable }))) }}</div>
+      <div data-test="column-layout">{{ JSON.stringify(columns.map((col) => ({ key: col.key, class: col.class || '' }))) }}</div>
       <button data-test="sort-current-concurrency" @click="$emit('sort', 'current_concurrency', 'asc')">
         Sort Current Concurrency
       </button>
@@ -198,6 +199,9 @@ const DataTableStub = {
         </div>
         <slot name="cell-name" :value="row.name" :row="row" />
         <slot name="cell-actions" :row="row" />
+        <div v-if="columns.some((col) => col.key === 'key')" data-test="api-key-cell">
+          <slot name="cell-key" :value="row.key" :row="row" />
+        </div>
         <div data-test="current-concurrency">
           <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
         </div>
@@ -244,6 +248,12 @@ const IconStub = {
   template: '<span data-test="icon">{{ name }}</span>',
 }
 
+const EndpointPopoverStub = {
+  name: 'EndpointPopover',
+  props: ['apiBaseUrl', 'customEndpoints'],
+  template: '<section data-test="api-endpoints">{{ apiBaseUrl }}</section>',
+}
+
 const mountView = async () => {
   const wrapper = mount(KeysView, {
     global: {
@@ -264,7 +274,7 @@ const mountView = async () => {
         Icon: IconStub,
         UseKeyModal: true,
         BulkEditKeysModal: true,
-        EndpointPopover: true,
+        EndpointPopover: EndpointPopoverStub,
         GroupBadge: true,
         GroupOptionItem: true,
         Teleport: true,
@@ -281,6 +291,9 @@ const visibleColumnKeys = (wrapper: VueWrapper) =>
 
 const visibleColumnMeta = (wrapper: VueWrapper): Array<{ key: string; sortable: boolean }> =>
   JSON.parse(wrapper.get('[data-test="columns-meta"]').text())
+
+const visibleColumnLayout = (wrapper: VueWrapper): Array<{ key: string; class: string }> =>
+  JSON.parse(wrapper.get('[data-test="column-layout"]').text())
 
 const getButtonByText = (wrapper: VueWrapper, text: string) => {
   const button = wrapper.findAll('button').find((item) => item.text().includes(text))
@@ -312,6 +325,14 @@ describe('user KeysView column settings', () => {
     vi.restoreAllMocks()
   })
 
+  it('offers the static image skill without embedding an API key and preserves endpoints', async () => {
+    const wrapper = await mountView()
+    const download = wrapper.get('[data-test="download-image-skill"]')
+    expect(download.attributes('href')).toBe('/downloads/poolai-image.zip')
+    expect(download.attributes('download')).toBe('poolai-image.zip')
+    expect(download.attributes('href')).not.toContain('sk-test-key')
+    expect(wrapper.find('[data-test="api-endpoints"]').exists()).toBe(true)
+  })
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
     vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
@@ -463,6 +484,30 @@ describe('user KeysView column settings', () => {
     await flushPromises()
     expect(table.props('selectedKeys')).toEqual([])
     wrapper.unmount()
+  })
+
+
+  it('protects the key workspace and important columns from compact desktop squeezing', async () => {
+    const wrapper = await mountView()
+    const layout = visibleColumnLayout(wrapper)
+
+    expect(wrapper.find('.keys-page-layout').exists()).toBe(true)
+    expect(wrapper.find('.keys-toolbar').exists()).toBe(true)
+    expect(wrapper.find('.keys-table').exists()).toBe(true)
+    expect(layout.find((column) => column.key === 'name')?.class).toContain('min-w-[140px]')
+    expect(layout.find((column) => column.key === 'key')?.class).toContain('min-w-[220px]')
+    expect(layout.find((column) => column.key === 'group')?.class).toContain('min-w-[220px]')
+    expect(layout.find((column) => column.key === 'actions')?.class).toContain('min-w-[184px]')
+    expect(wrapper.get('[data-test="api-key-cell"] .key-value-code').classes()).toContain('truncate')
+  })
+
+  it('always keeps the API endpoint section and falls back to the current site URL', async () => {
+    const wrapper = await mountView()
+    const endpointSection = wrapper.findComponent({ name: 'EndpointPopover' })
+
+    expect(endpointSection.exists()).toBe(true)
+    expect(endpointSection.props('apiBaseUrl')).toBe(window.location.origin)
+    expect(wrapper.get('[data-test="api-endpoints"]').text()).toBe(window.location.origin)
   })
 
   it('shows a hidden column when toggled and persists the preference', async () => {
@@ -944,7 +989,7 @@ describe('user KeysView column settings', () => {
     { key: 'current_concurrency', order: 'asc' },
     { key: 'group', order: 'asc' },
     { key: 'group', order: 'desc' },
-  ] as const)('keeps filters and resets pagination and selection when sorting $key $order', async ({ key, order }) => {
+  ] as const)('keeps filters and resets pagination when sorting $key $order', async ({ key, order }) => {
     getAvailableGroups.mockResolvedValue([{ id: 42, name: 'OpenAI' }])
     const wrapper = await mountView()
 

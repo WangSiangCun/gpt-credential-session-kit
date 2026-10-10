@@ -1469,6 +1469,9 @@ var (
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "expires_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "validity_days", Type: field.TypeInt, Default: 30},
+		{Name: "batch_id", Type: field.TypeString, Nullable: true, Size: 32},
+		{Name: "batch_user_once", Type: field.TypeBool, Default: false},
+		{Name: "global_user_once", Type: field.TypeBool, Default: false},
 		{Name: "group_id", Type: field.TypeInt64, Nullable: true},
 		{Name: "used_by", Type: field.TypeInt64, Nullable: true},
 	}
@@ -1480,13 +1483,13 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "redeem_codes_groups_redeem_codes",
-				Columns:    []*schema.Column{RedeemCodesColumns[10]},
+				Columns:    []*schema.Column{RedeemCodesColumns[13]},
 				RefColumns: []*schema.Column{GroupsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "redeem_codes_users_redeem_codes",
-				Columns:    []*schema.Column{RedeemCodesColumns[11]},
+				Columns:    []*schema.Column{RedeemCodesColumns[14]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -1500,17 +1503,27 @@ var (
 			{
 				Name:    "redeemcode_used_by",
 				Unique:  false,
-				Columns: []*schema.Column{RedeemCodesColumns[11]},
+				Columns: []*schema.Column{RedeemCodesColumns[14]},
 			},
 			{
 				Name:    "redeemcode_group_id",
 				Unique:  false,
-				Columns: []*schema.Column{RedeemCodesColumns[10]},
+				Columns: []*schema.Column{RedeemCodesColumns[13]},
 			},
 			{
 				Name:    "redeemcode_expires_at",
 				Unique:  false,
 				Columns: []*schema.Column{RedeemCodesColumns[8]},
+			},
+			{
+				Name:    "redeemcode_batch_id",
+				Unique:  false,
+				Columns: []*schema.Column{RedeemCodesColumns[10]},
+			},
+			{
+				Name:    "redeemcode_global_user_once",
+				Unique:  false,
+				Columns: []*schema.Column{RedeemCodesColumns[12]},
 			},
 		},
 	}

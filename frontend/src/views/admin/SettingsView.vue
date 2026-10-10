@@ -44,6 +44,16 @@
           </nav>
         </div>
 
+        <!-- Tab: API endpoints -->
+        <div v-show="activeTab === 'endpoints'" class="space-y-6">
+          <EndpointSettingsPanel
+            :api-base-url="form.api_base_url"
+            :custom-endpoints="form.custom_endpoints"
+            @update:api-base-url="form.api_base_url = $event"
+            @update:custom-endpoints="form.custom_endpoints = $event"
+          />
+        </div>
+
         <!-- Tab: Security — Admin API Key -->
         <div v-show="activeTab === 'security'" class="space-y-6">
           <!-- Admin API Key Settings -->
@@ -423,6 +433,65 @@
                         ? t("common.saving")
                         : t("common.save")
                     }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- OpenAI 403 Protection Settings -->
+          <div class="card">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.openAI403Protection.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.openAI403Protection.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div v-if="openAI403ProtectionLoading" class="flex items-center gap-2 text-gray-500">
+                <div class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"></div>
+                {{ t("common.loading") }}
+              </div>
+              <template v-else>
+                <div class="flex items-center justify-between">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">
+                      {{ t("admin.settings.openAI403Protection.enabled") }}
+                    </label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.openAI403Protection.enabledHint") }}
+                    </p>
+                  </div>
+                  <Toggle v-model="openAI403ProtectionForm.enabled" />
+                </div>
+                <div v-if="openAI403ProtectionForm.enabled" class="grid gap-4 border-t border-gray-100 pt-4 dark:border-dark-700 sm:grid-cols-3">
+                  <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {{ t("admin.settings.openAI403Protection.thresholdCount") }}
+                    </label>
+                    <input v-model.number="openAI403ProtectionForm.threshold_count" type="number" min="1" max="20" class="input w-32" />
+                  </div>
+                  <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {{ t("admin.settings.openAI403Protection.thresholdWindowMinutes") }}
+                    </label>
+                    <input v-model.number="openAI403ProtectionForm.threshold_window_minutes" type="number" min="1" max="1440" class="input w-32" />
+                  </div>
+                  <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {{ t("admin.settings.openAI403Protection.cooldownMinutes") }}
+                    </label>
+                    <input v-model.number="openAI403ProtectionForm.cooldown_minutes" type="number" min="1" max="1440" class="input w-32" />
+                  </div>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.openAI403Protection.behaviorHint") }}
+                </p>
+                <div class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700">
+                  <button type="button" @click="saveOpenAI403ProtectionSettings" :disabled="openAI403ProtectionSaving" class="btn btn-primary btn-sm">
+                    {{ openAI403ProtectionSaving ? t("common.saving") : t("common.save") }}
                   </button>
                 </div>
               </template>
@@ -1860,197 +1929,51 @@
             </div>
           </div>
 
-          <!-- Panel API Rate Limit Settings -->
-          <div class="card">
-            <div
-              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
-            >
-              <div class="flex items-center gap-2">
-                <Icon
-                  name="shield"
-                  size="md"
-                  class="text-primary-500"
-                />
-                <h2 id="settings-section-panel-rate-limit" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
-                  {{ t("admin.settings.panelRateLimit.title") }}
-                </h2>
-              </div>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {{ t("admin.settings.panelRateLimit.description") }}
-              </p>
+          <div class="card" data-testid="panel-rate-limit-settings">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <h2 id="settings-section-panel-rate-limit" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.settings.panelRateLimit.title') }}</h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.settings.panelRateLimit.description') }}</p>
             </div>
             <div class="space-y-5 p-6">
-              <div
-                v-if="panelRateLimitLoading"
-                class="flex items-center gap-2 text-gray-500"
-              >
-                <div
-                  class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
-                ></div>
-                {{ t("common.loading") }}
+              <p v-if="panelRateLimitLoading" role="status" class="text-sm text-gray-500">{{ t('common.loading') }}</p>
+              <div v-else-if="!panelRateLimitLoaded" role="alert" class="flex flex-wrap items-center justify-between gap-3">
+                <p class="text-sm text-red-600 dark:text-red-400">{{ t('admin.settings.panelRateLimit.loadFailed') }}</p>
+                <button type="button" class="btn btn-secondary btn-sm" data-testid="panel-rate-limit-retry" @click="loadPanelRateLimitSettings">{{ t('common.refresh') }}</button>
               </div>
-
-              <template v-else>
-                <!-- 计数维度说明：按账号计数，反代部署无误伤 -->
-                <div
-                  class="rounded-lg border border-sky-200 bg-sky-50 p-4 dark:border-sky-800 dark:bg-sky-900/20"
-                >
-                  <div class="flex items-start">
-                    <Icon
-                      name="infoCircle"
-                      size="md"
-                      class="mt-0.5 flex-shrink-0 text-sky-500"
-                    />
-                    <p class="ml-3 text-sm text-sky-700 dark:text-sky-300">
-                      {{ t("admin.settings.panelRateLimit.proxySafeNote") }}
-                    </p>
-                  </div>
-                </div>
-
-                <div class="flex items-center justify-between">
+              <fieldset v-else :disabled="panelRateLimitSaving" class="min-w-0 space-y-5">
+                <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.settings.panelRateLimit.proxySafeNote') }}</p>
+                <div class="flex items-center justify-between gap-4">
                   <div>
-                    <label class="font-medium text-gray-900 dark:text-white">{{
-                      t("admin.settings.panelRateLimit.enabled")
-                    }}</label>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                      {{ t("admin.settings.panelRateLimit.enabledHint") }}
-                    </p>
+                    <label for="panel-rate-limit-enabled" class="font-medium text-gray-900 dark:text-white">{{ t('admin.settings.panelRateLimit.enabled') }}</label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.settings.panelRateLimit.enabledHint') }}</p>
                   </div>
-                  <Toggle v-model="panelRateLimitForm.enabled" />
+                  <Toggle id="panel-rate-limit-enabled" v-model="panelRateLimitForm.enabled" data-testid="panel-rate-limit-enabled" :disabled="panelRateLimitSaving" :aria-label="t('admin.settings.panelRateLimit.enabled')" />
                 </div>
-
-                <div
-                  v-if="panelRateLimitForm.enabled"
-                  class="space-y-5 border-t border-gray-100 pt-4 dark:border-dark-700"
-                >
-                  <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                    <div>
-                      <label
-                        class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                      >
-                        {{ t("admin.settings.panelRateLimit.userRpm") }}
-                      </label>
+                <div v-if="panelRateLimitForm.enabled" class="space-y-5 border-t border-gray-100 pt-4 dark:border-dark-700">
+                  <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                    <div v-for="field in panelRateLimitFields" :key="field.key">
+                      <label :for="`panel-rate-limit-${field.key}`" class="input-label">{{ t(`admin.settings.panelRateLimit.${field.label}`) }}</label>
                       <div class="flex items-center gap-2">
-                        <input
-                          v-model.number="panelRateLimitForm.user_rpm"
-                          data-testid="panel-rate-limit-user-rpm"
-                          type="number"
-                          min="0"
-                          max="100000"
-                          class="input w-32"
-                        />
-                        <span class="text-sm text-gray-500 dark:text-gray-400">
-                          {{ t("admin.settings.panelRateLimit.perMinute") }}
-                        </span>
+                        <input :id="`panel-rate-limit-${field.key}`" v-model.number="panelRateLimitForm[field.key]" :data-testid="`panel-rate-limit-${field.key.replace(/_/g, '-')}`" type="number" min="0" max="100000" step="1" class="input w-32" @keydown.enter.prevent="savePanelRateLimitSettings" />
+                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.settings.panelRateLimit.perMinute') }}</span>
                       </div>
-                      <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                        {{ t("admin.settings.panelRateLimit.userRpmHint") }}
-                      </p>
-                    </div>
-
-                    <div>
-                      <label
-                        class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                      >
-                        {{ t("admin.settings.panelRateLimit.heavyRpm") }}
-                      </label>
-                      <div class="flex items-center gap-2">
-                        <input
-                          v-model.number="panelRateLimitForm.heavy_rpm"
-                          type="number"
-                          min="0"
-                          max="100000"
-                          class="input w-32"
-                        />
-                        <span class="text-sm text-gray-500 dark:text-gray-400">
-                          {{ t("admin.settings.panelRateLimit.perMinute") }}
-                        </span>
-                      </div>
-                      <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                        {{ t("admin.settings.panelRateLimit.heavyRpmHint") }}
-                      </p>
-                    </div>
-
-                    <div>
-                      <label
-                        class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                      >
-                        {{ t("admin.settings.panelRateLimit.publicIpRpm") }}
-                      </label>
-                      <div class="flex items-center gap-2">
-                        <input
-                          v-model.number="panelRateLimitForm.public_ip_rpm"
-                          type="number"
-                          min="0"
-                          max="100000"
-                          class="input w-32"
-                        />
-                        <span class="text-sm text-gray-500 dark:text-gray-400">
-                          {{ t("admin.settings.panelRateLimit.perMinute") }}
-                        </span>
-                      </div>
-                      <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                        {{ t("admin.settings.panelRateLimit.publicIpRpmHint") }}
-                      </p>
+                      <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{{ t(`admin.settings.panelRateLimit.${field.label}Hint`) }}</p>
                     </div>
                   </div>
-
-                  <div
-                    class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
-                  >
+                  <div class="flex items-center justify-between gap-4">
                     <div>
-                      <label class="font-medium text-gray-900 dark:text-white">{{
-                        t("admin.settings.panelRateLimit.exemptAdmin")
-                      }}</label>
-                      <p class="text-sm text-gray-500 dark:text-gray-400">
-                        {{ t("admin.settings.panelRateLimit.exemptAdminHint") }}
-                      </p>
+                      <label for="panel-rate-limit-exempt-admin" class="font-medium text-gray-900 dark:text-white">{{ t('admin.settings.panelRateLimit.exemptAdmin') }}</label>
+                      <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.settings.panelRateLimit.exemptAdminHint') }}</p>
                     </div>
-                    <Toggle v-model="panelRateLimitForm.exempt_admin" />
+                    <Toggle id="panel-rate-limit-exempt-admin" v-model="panelRateLimitForm.exempt_admin" data-testid="panel-rate-limit-exempt-admin" :disabled="panelRateLimitSaving" :aria-label="t('admin.settings.panelRateLimit.exemptAdmin')" />
                   </div>
                 </div>
-
-                <div
-                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
-                >
-                  <button
-                    type="button"
-                    data-testid="panel-rate-limit-save"
-                    @click="savePanelRateLimitSettings"
-                    :disabled="panelRateLimitSaving"
-                    class="btn btn-primary btn-sm"
-                  >
-                    <svg
-                      v-if="panelRateLimitSaving"
-                      class="mr-1 h-4 w-4 animate-spin"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                      ></circle>
-                      <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    {{
-                      panelRateLimitSaving
-                        ? t("common.saving")
-                        : t("common.save")
-                    }}
-                  </button>
+                <div class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700">
+                  <button type="button" class="btn btn-primary btn-sm" data-testid="panel-rate-limit-save" :disabled="panelRateLimitSaving" @click="savePanelRateLimitSettings">{{ t(panelRateLimitSaving ? 'common.saving' : 'common.save') }}</button>
                 </div>
-              </template>
+              </fieldset>
             </div>
           </div>
-
           <!-- 人机验证 Settings -->
           <div class="card">
             <div
@@ -6678,24 +6601,6 @@
                 </div>
               </div>
 
-              <!-- API Base URL -->
-              <div>
-                <label
-                  class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  {{ t("admin.settings.site.apiBaseUrl") }}
-                </label>
-                <input
-                  v-model="form.api_base_url"
-                  type="text"
-                  class="input font-mono text-sm"
-                  :placeholder="t('admin.settings.site.apiBaseUrlPlaceholder')"
-                />
-                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  {{ t("admin.settings.site.apiBaseUrlHint") }}
-                </p>
-              </div>
-
               <!-- Global Table Preferences -->
               <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
                 <h3 class="text-sm font-medium text-gray-900 dark:text-white">
@@ -6742,137 +6647,6 @@
                     </p>
                   </div>
                 </div>
-              </div>
-
-              <!-- Custom Endpoints -->
-              <div>
-                <label
-                  class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  {{ t("admin.settings.site.customEndpoints.title") }}
-                </label>
-                <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
-                  {{ t("admin.settings.site.customEndpoints.description") }}
-                </p>
-
-                <div class="space-y-3">
-                  <div
-                    v-for="(ep, index) in form.custom_endpoints"
-                    :key="index"
-                    class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
-                  >
-                    <div class="mb-3 flex items-center justify-between">
-                      <span
-                        class="text-sm font-medium text-gray-700 dark:text-gray-300"
-                      >
-                        {{
-                          t("admin.settings.site.customEndpoints.itemLabel", {
-                            n: index + 1,
-                          })
-                        }}
-                      </span>
-                      <button
-                        type="button"
-                        class="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
-                        @click="removeEndpoint(index)"
-                      >
-                        <svg
-                          class="h-4 w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <div>
-                        <label
-                          class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
-                        >
-                          {{ t("admin.settings.site.customEndpoints.name") }}
-                        </label>
-                        <input
-                          v-model="ep.name"
-                          type="text"
-                          class="input text-sm"
-                          :placeholder="
-                            t(
-                              'admin.settings.site.customEndpoints.namePlaceholder',
-                            )
-                          "
-                        />
-                      </div>
-                      <div>
-                        <label
-                          class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
-                        >
-                          {{
-                            t("admin.settings.site.customEndpoints.endpointUrl")
-                          }}
-                        </label>
-                        <input
-                          v-model="ep.endpoint"
-                          type="url"
-                          class="input font-mono text-sm"
-                          :placeholder="
-                            t(
-                              'admin.settings.site.customEndpoints.endpointUrlPlaceholder',
-                            )
-                          "
-                        />
-                      </div>
-                      <div class="sm:col-span-2">
-                        <label
-                          class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
-                        >
-                          {{
-                            t(
-                              "admin.settings.site.customEndpoints.descriptionLabel",
-                            )
-                          }}
-                        </label>
-                        <input
-                          v-model="ep.description"
-                          type="text"
-                          class="input text-sm"
-                          :placeholder="
-                            t(
-                              'admin.settings.site.customEndpoints.descriptionPlaceholder',
-                            )
-                          "
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-2.5 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
-                  @click="addEndpoint"
-                >
-                  <svg
-                    class="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M12 4v16m8-8H4"
-                    />
-                  </svg>
-                  {{ t("admin.settings.site.customEndpoints.add") }}
-                </button>
               </div>
 
               <!-- Contact Info -->
@@ -6926,6 +6700,59 @@
                   :hint="t('admin.settings.site.logoHint')"
                   :max-size="300 * 1024"
                 />
+              </div>
+
+              <!-- QQ Group Entry -->
+              <div class="border-t border-gray-100 pt-5 dark:border-dark-700">
+                <div class="flex items-start justify-between gap-6">
+                  <div>
+                    <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+                      {{ t("admin.settings.site.qqGroupTitle") }}
+                    </h3>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.site.qqGroupHint") }}
+                    </p>
+                  </div>
+                  <Toggle
+                    :model-value="form.qq_group_enabled ?? false"
+                    @update:model-value="form.qq_group_enabled = $event"
+                  />
+                </div>
+
+                <div
+                  v-if="form.qq_group_enabled"
+                  class="mt-5 grid grid-cols-1 gap-6 md:grid-cols-[auto,1fr]"
+                >
+                  <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {{ t("admin.settings.site.qqGroupQrCode") }}
+                    </label>
+                    <ImageUpload
+                      :model-value="form.qq_group_qr_code || ''"
+                      @update:model-value="form.qq_group_qr_code = $event"
+                      mode="image"
+                      :upload-label="t('admin.settings.site.uploadImage')"
+                      :remove-label="t('admin.settings.site.remove')"
+                      :hint="t('admin.settings.site.qqGroupQrCodeHint')"
+                      :max-size="600 * 1024"
+                    />
+                  </div>
+                  <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {{ t("admin.settings.site.qqGroupDescription") }}
+                    </label>
+                    <textarea
+                      v-model="form.qq_group_description"
+                      rows="4"
+                      maxlength="300"
+                      class="input resize-y"
+                      :placeholder="t('admin.settings.site.qqGroupDescriptionPlaceholder')"
+                    ></textarea>
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.site.qqGroupDescriptionHint") }}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <!-- Home Content -->
@@ -7693,7 +7520,99 @@
               </div>
               <Toggle v-model="form.available_channels_enabled" />
             </div>
-          </div>
+          <div class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.availableChannels.quotaVisible') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.availableChannels.quotaVisibleHint') }}
+                </p>
+              </div>
+              <Toggle
+                v-model="form.available_channels_quota_visible"
+                :disabled="!form.available_channels_enabled"
+              />
+            </div>
+<div class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.availableChannels.accountsVisible') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.availableChannels.accountsVisibleHint') }}
+                </p>
+              </div>
+              <Toggle
+                v-model="form.available_channels_accounts_visible"
+                :disabled="!form.available_channels_enabled || !form.available_channels_quota_visible"
+              />
+            </div>
+<div class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.availableChannels.cacheHitRateVisible') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.availableChannels.cacheHitRateVisibleHint') }}
+                </p>
+              </div>
+              <Toggle
+                v-model="form.available_channels_cache_hit_rate_visible"
+                :disabled="!form.available_channels_enabled"
+              />
+            </div>
+<div class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.availableChannels.timelineEnabled') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.availableChannels.timelineEnabledHint') }}
+                </p>
+              </div>
+              <Toggle
+                v-model="form.available_channels_timeline_enabled"
+                :disabled="!form.available_channels_enabled"
+              />
+            </div>
+<div class="grid gap-4 border-t border-gray-100 pt-5 dark:border-dark-700 sm:grid-cols-2">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.availableChannels.timelineRequestCount') }}
+                </label>
+                <input
+                  v-model.number="form.available_channels_timeline_request_count"
+                  type="number"
+                  min="10"
+                  max="2000"
+                  step="10"
+                  class="input mt-2"
+                  :disabled="!form.available_channels_enabled || (!form.available_channels_timeline_enabled && !form.available_channels_cache_hit_rate_visible)"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.availableChannels.timelineRequestCountHint') }}
+                </p>
+              </div>
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.availableChannels.timelineRefreshSeconds') }}
+                </label>
+                <input
+                  v-model.number="form.available_channels_timeline_refresh_seconds"
+                  type="number"
+                  min="1"
+                  max="60"
+                  step="1"
+                  class="input mt-2"
+                  :disabled="!form.available_channels_enabled || (!form.available_channels_timeline_enabled && !form.available_channels_cache_hit_rate_visible)"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.availableChannels.timelineRefreshSecondsHint') }}
+                </p>
+              </div>
+            </div>
+</div>
         </div>
 
         <!-- The Pelican showcase is configured with its group tests under Smart Ops. -->
@@ -8428,6 +8347,72 @@
         <!-- Tab: Email -->
         <!-- Tab: Payment -->
         <div v-show="activeTab === 'payment'" class="space-y-6">
+          <!-- CloudCat purchase cards -->
+          <div class="card">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">云猫寄售兑换卡配置</h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                配置前台显示的到账金额、实付金额和二维码。保存后用户端会立即按这里的内容展示。
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div>
+                <label class="input-label">云猫店铺链接</label>
+                <input
+                  v-model="form.cloudcat_store_url"
+                  type="url"
+                  class="input"
+                  placeholder="https://catfk.com/shop/5AUO36V9"
+                />
+              </div>
+
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">兑换卡档位</label>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      到账金额用于兑换余额，实付金额用于展示折扣；二维码填写图片 URL 或前端静态路径。
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    @click="form.cloudcat_plans.push({ amount: 0, pay_amount: 0, image: '' })"
+                  >
+                    添加档位
+                  </button>
+                </div>
+
+                <div
+                  v-for="(plan, index) in form.cloudcat_plans"
+                  :key="index"
+                  class="grid grid-cols-1 items-end gap-3 rounded-md border border-gray-200 p-3 dark:border-dark-700 sm:grid-cols-[1fr_1fr_2fr_auto]"
+                >
+                  <div>
+                    <label class="input-label">到账金额</label>
+                    <input v-model.number="plan.amount" type="number" min="0.01" step="0.01" class="input" />
+                  </div>
+                  <div>
+                    <label class="input-label">实付金额</label>
+                    <input v-model.number="plan.pay_amount" type="number" min="0.01" step="0.01" class="input" />
+                  </div>
+                  <div>
+                    <label class="input-label">二维码图片</label>
+                    <input v-model="plan.image" type="text" class="input" placeholder="/payment/10.png" />
+                  </div>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-sm text-red-600 hover:text-red-700"
+                    :disabled="form.cloudcat_plans.length <= 1"
+                    @click="form.cloudcat_plans.splice(index, 1)"
+                  >
+                    删除
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Payment System Settings -->
           <div class="card">
             <div
@@ -9554,6 +9539,7 @@ import ImageUpload from "@/components/common/ImageUpload.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
 import ServerlessSettings from "@/components/settings/ServerlessSettings.vue";
 import EmailTemplateEditor from "@/views/admin/settings/EmailTemplateEditor.vue";
+import EndpointSettingsPanel from "@/views/admin/settings/EndpointSettingsPanel.vue";
 import RechargeBonusTierEditor from "@/components/admin/settings/RechargeBonusTierEditor.vue";
 import {
   normalizeRechargeBonusMode,
@@ -9618,6 +9604,7 @@ const loadFailed = ref(false);
 const { activeTab, selectSettingsTab } = useSettingsNavigation(loading, loadFailed);
 const settingsTabs = [
   { key: "general" as SettingsTab, icon: "home" as const },
+  { key: "endpoints" as SettingsTab, icon: "globe" as const },
   { key: "agreement" as SettingsTab, icon: "document" as const },
   { key: "features" as SettingsTab, icon: "bolt" as const },
   { key: "security" as SettingsTab, icon: "shield" as const },
@@ -9691,6 +9678,15 @@ const adminApiKeyLoading = ref(true);
 const adminApiKeyExists = ref(false);
 const adminApiKeyMasked = ref("");
 const adminApiKeyOperating = ref(false);
+const panelRateLimitLoading = ref(true);
+const panelRateLimitLoaded = ref(false);
+const panelRateLimitSaving = ref(false);
+const panelRateLimitForm = reactive({ enabled: true, user_rpm: 240, heavy_rpm: 60, exempt_admin: true, public_ip_rpm: 300 });
+const panelRateLimitFields = [
+  { key: 'user_rpm', label: 'userRpm' },
+  { key: 'heavy_rpm', label: 'heavyRpm' },
+  { key: 'public_ip_rpm', label: 'publicIpRpm' },
+] as const;
 const newAdminApiKey = ref("");
 const subscriptionGroups = ref<AdminGroup[]>([]);
 const codexHarvestGroups = ref<AdminGroup[]>([]);
@@ -9718,7 +9714,7 @@ const ollamaCloudUsageSaving = ref(false);
 const ollamaCloudUsageForm = reactive({
   enabled: false,
   interval_minutes: 60,
-  debounce_minutes: 1,
+	debounce_minutes: 1,
 });
 
 const opencodeGoUsageLoading = ref(true);
@@ -9745,15 +9741,13 @@ const rateLimit429CooldownForm = reactive({
   cooldown_seconds: 5,
 });
 
-// Panel API Rate Limit 状态
-const panelRateLimitLoading = ref(true);
-const panelRateLimitSaving = ref(false);
-const panelRateLimitForm = reactive({
+const openAI403ProtectionLoading = ref(true);
+const openAI403ProtectionSaving = ref(false);
+const openAI403ProtectionForm = reactive({
   enabled: true,
-  user_rpm: 240,
-  heavy_rpm: 60,
-  exempt_admin: true,
-  public_ip_rpm: 300,
+  threshold_count: 3,
+  threshold_window_minutes: 180,
+  cooldown_minutes: 10,
 });
 
 // Stream Timeout 状态
@@ -10345,8 +10339,18 @@ const form = reactive<SettingsForm>({
   doc_url: "",
   home_content: "",
   compact_home_enabled: false,
+  qq_group_enabled: true,
+  qq_group_qr_code: "/qq-group-default.jpg",
+  qq_group_description: "扫码加入用户交流群，获取使用帮助与最新动态",
   backend_mode_enabled: false,
   hide_ccs_import_button: false,
+  cloudcat_store_url: "https://catfk.com/shop/5AUO36V9",
+  cloudcat_plans: [
+    { amount: 10, pay_amount: 10, image: "/payment/10.png" },
+    { amount: 20, pay_amount: 20, image: "/payment/20.png" },
+    { amount: 50, pay_amount: 50, image: "/payment/50.png" },
+    { amount: 100, pay_amount: 100, image: "/payment/100.png" },
+  ],
   payment_enabled: false,
   risk_control_enabled: false,
   cyber_policy_user_allowlist: "",
@@ -10594,11 +10598,18 @@ const form = reactive<SettingsForm>({
   channel_monitor_enabled: true,
   channel_monitor_mode: 'v1' as 'v1' | 'v2' | 'v3',
   channel_monitor_default_interval_seconds: 60,
+  // Available Channels feature switch
+  available_channels_enabled: false,
+  available_channels_quota_visible: false,
+  available_channels_accounts_visible: false,
+  available_channels_cache_hit_rate_visible: false,
+  available_channels_timeline_enabled: true,
+  available_channels_timeline_request_count: 1000,
+  available_channels_timeline_refresh_seconds: 2,
   channel_monitor_hide_throughput: false,
   channel_monitor_show_quota: false,
   channel_monitor_hide_user_ranking: false,
   // Available Channels feature switch
-  available_channels_enabled: false,
   // Subscription feature switch (user sidebar "My Subscriptions" entry)
   subscription_enabled: true,
   // Model Plaza feature switches + description
@@ -11439,14 +11450,6 @@ function moveMenuItem(index: number, direction: -1 | 1) {
 }
 
 // Custom endpoint management
-function addEndpoint() {
-  form.custom_endpoints.push({ name: "", endpoint: "", description: "" });
-}
-
-function removeEndpoint(index: number) {
-  form.custom_endpoints.splice(index, 1);
-}
-
 function addLoginAgreementDocument() {
   form.login_agreement_documents.push({
     id: `custom-${Date.now().toString(36)}`,
@@ -11671,6 +11674,9 @@ async function loadSettings() {
     form.openai_codex_ticket_harvest_scope.account_policy =
       form.openai_codex_ticket_harvest_scope.account_policy || 'schedulable_only';
     syncCodexTicketProxyMode();
+    // Account details are only meaningful alongside quota disclosure.
+    form.available_channels_accounts_visible =
+      form.available_channels_quota_visible && form.available_channels_accounts_visible;
     // For this optional override, null explicitly selects per-account rates.
     if (settings.openai_oauth_scheduling_rate_multiplier === null) {
       form.openai_oauth_scheduling_rate_multiplier = null;
@@ -12142,6 +12148,9 @@ async function saveSettings() {
     form.claude_oauth_system_prompt_blocks =
       claudeOAuthSystemPromptBlocksJSON;
 
+    const availableChannelsQuotaVisible = !!form.available_channels_quota_visible;
+    const availableChannelsAccountsVisible =
+      availableChannelsQuotaVisible && !!form.available_channels_accounts_visible;
     const oauthSchedulingRate = form.openai_oauth_scheduling_rate_multiplier;
     if (
       oauthSchedulingRate !== "" &&
@@ -12202,8 +12211,17 @@ async function saveSettings() {
       doc_url: form.doc_url,
       home_content: form.home_content,
       compact_home_enabled: form.compact_home_enabled,
+      qq_group_enabled: form.qq_group_enabled,
+      qq_group_qr_code: form.qq_group_qr_code,
+      qq_group_description: form.qq_group_description,
       backend_mode_enabled: form.backend_mode_enabled,
       hide_ccs_import_button: form.hide_ccs_import_button,
+      cloudcat_store_url: form.cloudcat_store_url.trim(),
+      cloudcat_plans: form.cloudcat_plans.map((plan) => ({
+        amount: Number(plan.amount),
+        pay_amount: Number(plan.pay_amount),
+        image: String(plan.image || "").trim(),
+      })),
       table_default_page_size: form.table_default_page_size,
       table_page_size_options: form.table_page_size_options,
       custom_menu_items: form.custom_menu_items,
@@ -12487,11 +12505,20 @@ async function saveSettings() {
         form.channel_monitor_mode === loadedChannelMonitorMode ? undefined : form.channel_monitor_mode,
       channel_monitor_default_interval_seconds:
         Number(form.channel_monitor_default_interval_seconds) || 60,
+      // Available Channels feature switch
+      available_channels_enabled: form.available_channels_enabled,
+      available_channels_quota_visible: availableChannelsQuotaVisible,
+      available_channels_accounts_visible: availableChannelsAccountsVisible,
+      available_channels_cache_hit_rate_visible: form.available_channels_cache_hit_rate_visible,
+      available_channels_timeline_enabled: form.available_channels_timeline_enabled,
+      available_channels_timeline_request_count:
+        Number(form.available_channels_timeline_request_count) || 1000,
+      available_channels_timeline_refresh_seconds:
+        Number(form.available_channels_timeline_refresh_seconds) || 2,
       channel_monitor_hide_throughput: Boolean(form.channel_monitor_hide_throughput),
       channel_monitor_show_quota: Boolean(form.channel_monitor_show_quota),
       channel_monitor_hide_user_ranking: Boolean(form.channel_monitor_hide_user_ranking),
       // Available Channels feature switch
-      available_channels_enabled: form.available_channels_enabled,
       // Subscription feature switch
       subscription_enabled: form.subscription_enabled,
       // Model Plaza feature switches + description
@@ -12901,6 +12928,36 @@ async function saveOpenCodeGoUsageSettings() {
 }
 
 // Overload Cooldown 方法
+async function loadPanelRateLimitSettings() {
+  panelRateLimitLoading.value = true;
+  panelRateLimitLoaded.value = false;
+  try {
+    Object.assign(panelRateLimitForm, await adminAPI.settings.getPanelRateLimitSettings());
+    panelRateLimitLoaded.value = true;
+  } catch (error: unknown) {
+    appStore.showError(extractApiErrorMessage(error, t('admin.settings.panelRateLimit.loadFailed')));
+  } finally {
+    panelRateLimitLoading.value = false;
+  }
+}
+
+async function savePanelRateLimitSettings() {
+  if (!panelRateLimitLoaded.value || panelRateLimitLoading.value || panelRateLimitSaving.value) return;
+  if (panelRateLimitFields.some(({ key }) => !Number.isInteger(panelRateLimitForm[key]) || panelRateLimitForm[key] < 0 || panelRateLimitForm[key] > 100000)) {
+    appStore.showError(t('admin.settings.panelRateLimit.invalidRpm'));
+    return;
+  }
+  panelRateLimitSaving.value = true;
+  try {
+    Object.assign(panelRateLimitForm, await adminAPI.settings.updatePanelRateLimitSettings({ ...panelRateLimitForm }));
+    appStore.showSuccess(t('admin.settings.panelRateLimit.saved'));
+  } catch (error: unknown) {
+    appStore.showError(extractApiErrorMessage(error, t('admin.settings.panelRateLimit.saveFailed')));
+  } finally {
+    panelRateLimitSaving.value = false;
+  }
+}
+
 async function loadOverloadCooldownSettings() {
   overloadCooldownLoading.value = true;
   try {
@@ -12931,43 +12988,6 @@ async function saveOverloadCooldownSettings() {
     );
   } finally {
     overloadCooldownSaving.value = false;
-  }
-}
-
-// Panel API Rate Limit 方法
-async function loadPanelRateLimitSettings() {
-  panelRateLimitLoading.value = true;
-  try {
-    const settings = await adminAPI.settings.getPanelRateLimitSettings();
-    Object.assign(panelRateLimitForm, settings);
-  } catch (_error: unknown) {
-    // Silent fail - settings will use defaults
-  } finally {
-    panelRateLimitLoading.value = false;
-  }
-}
-
-async function savePanelRateLimitSettings() {
-  panelRateLimitSaving.value = true;
-  try {
-    const updated = await adminAPI.settings.updatePanelRateLimitSettings({
-      enabled: panelRateLimitForm.enabled,
-      user_rpm: panelRateLimitForm.user_rpm,
-      heavy_rpm: panelRateLimitForm.heavy_rpm,
-      exempt_admin: panelRateLimitForm.exempt_admin,
-      public_ip_rpm: panelRateLimitForm.public_ip_rpm,
-    });
-    Object.assign(panelRateLimitForm, updated);
-    appStore.showSuccess(t("admin.settings.panelRateLimit.saved"));
-  } catch (error: unknown) {
-    appStore.showError(
-      extractApiErrorMessage(
-        error,
-        t("admin.settings.panelRateLimit.saveFailed"),
-      ),
-    );
-  } finally {
-    panelRateLimitSaving.value = false;
   }
 }
 
@@ -13006,6 +13026,40 @@ async function saveRateLimit429CooldownSettings() {
 }
 
 // Stream Timeout 方法
+async function loadOpenAI403ProtectionSettings() {
+  openAI403ProtectionLoading.value = true;
+  try {
+    Object.assign(
+      openAI403ProtectionForm,
+      await adminAPI.settings.getOpenAI403ProtectionSettings(),
+    );
+  } catch (_error: unknown) {
+    // Keep safe defaults when the optional setting cannot be loaded.
+  } finally {
+    openAI403ProtectionLoading.value = false;
+  }
+}
+
+async function saveOpenAI403ProtectionSettings() {
+  openAI403ProtectionSaving.value = true;
+  try {
+    const updated = await adminAPI.settings.updateOpenAI403ProtectionSettings({
+      ...openAI403ProtectionForm,
+    });
+    Object.assign(openAI403ProtectionForm, updated);
+    appStore.showSuccess(t("admin.settings.openAI403Protection.saved"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.openAI403Protection.saveFailed"),
+      ),
+    );
+  } finally {
+    openAI403ProtectionSaving.value = false;
+  }
+}
+
 async function loadStreamTimeoutSettings() {
   streamTimeoutLoading.value = true;
   try {
@@ -13645,6 +13699,8 @@ async function handleDeleteProvider() {
 }
 
 onMounted(() => {
+  loadPanelRateLimitSettings();
+
   loadSettings();
   loadSubscriptionGroups();
   loadAdminApiKey();
@@ -13653,12 +13709,19 @@ onMounted(() => {
   loadOpenCodeGoUsageSettings();
   loadOverloadCooldownSettings();
   loadRateLimit429CooldownSettings();
-  loadPanelRateLimitSettings();
+  loadOpenAI403ProtectionSettings();
   loadStreamTimeoutSettings();
   loadRectifierSettings();
   loadBetaPolicySettings();
   loadProviders();
 });
+
+watch(
+  () => form.available_channels_quota_visible,
+  (visible) => {
+    if (!visible) form.available_channels_accounts_visible = false;
+  },
+);
 
 // =========================
 // Affiliate (邀请返利) 专属用户管理

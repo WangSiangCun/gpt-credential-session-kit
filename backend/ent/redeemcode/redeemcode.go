@@ -36,6 +36,12 @@ const (
 	FieldGroupID = "group_id"
 	// FieldValidityDays holds the string denoting the validity_days field in the database.
 	FieldValidityDays = "validity_days"
+	// FieldBatchID holds the string denoting the batch_id field in the database.
+	FieldBatchID = "batch_id"
+	// FieldBatchUserOnce holds the string denoting the batch_user_once field in the database.
+	FieldBatchUserOnce = "batch_user_once"
+	// FieldGlobalUserOnce holds the string denoting the global_user_once field in the database.
+	FieldGlobalUserOnce = "global_user_once"
 	// EdgeUser holds the string denoting the user edge name in mutations.
 	EdgeUser = "user"
 	// EdgeGroup holds the string denoting the group edge name in mutations.
@@ -72,6 +78,9 @@ var Columns = []string{
 	FieldExpiresAt,
 	FieldGroupID,
 	FieldValidityDays,
+	FieldBatchID,
+	FieldBatchUserOnce,
+	FieldGlobalUserOnce,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -101,6 +110,12 @@ var (
 	DefaultCreatedAt func() time.Time
 	// DefaultValidityDays holds the default value on creation for the "validity_days" field.
 	DefaultValidityDays int
+	// BatchIDValidator is a validator for the "batch_id" field. It is called by the builders before save.
+	BatchIDValidator func(string) error
+	// DefaultBatchUserOnce holds the default value on creation for the "batch_user_once" field.
+	DefaultBatchUserOnce bool
+	// DefaultGlobalUserOnce holds the default value on creation for the "global_user_once" field.
+	DefaultGlobalUserOnce bool
 )
 
 // OrderOption defines the ordering options for the RedeemCode queries.
@@ -164,6 +179,21 @@ func ByGroupID(opts ...sql.OrderTermOption) OrderOption {
 // ByValidityDays orders the results by the validity_days field.
 func ByValidityDays(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldValidityDays, opts...).ToFunc()
+}
+
+// ByBatchID orders the results by the batch_id field.
+func ByBatchID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBatchID, opts...).ToFunc()
+}
+
+// ByBatchUserOnce orders the results by the batch_user_once field.
+func ByBatchUserOnce(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBatchUserOnce, opts...).ToFunc()
+}
+
+// ByGlobalUserOnce orders the results by the global_user_once field.
+func ByGlobalUserOnce(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGlobalUserOnce, opts...).ToFunc()
 }
 
 // ByUserField orders the results by user field.

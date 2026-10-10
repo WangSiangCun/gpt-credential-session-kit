@@ -17,6 +17,10 @@ type PromptEngine interface {
 	Evaluate(ctx context.Context, req Request) (*PromptDecision, error)
 }
 
+type cyberPolicyRecorder interface {
+	RecordCyberPolicy(context.Context, Request, CyberPolicyMetadata) error
+}
+
 type Coordinator struct {
 	legacy LegacyEngine
 	prompt PromptEngine
@@ -47,6 +51,20 @@ func (c *Coordinator) Check(ctx context.Context, req Request) Decision {
 		legacy, _ := c.checkLegacy(ctx, req)
 		return prioritize(legacy, nil)
 	}
+}
+
+// RecordCyberPolicy persists evidence only after the upstream explicitly
+// returns error.code=cyber_policy. It is independent from the prompt-audit
+// mode so an upstream-only rejection remains diagnosable when scanning is off.
+func (c *Coordinator) RecordCyberPolicy(ctx context.Context, req Request, metadata CyberPolicyMetadata) error {
+	if c == nil || c.prompt == nil {
+		return nil
+	}
+	recorder, ok := c.prompt.(cyberPolicyRecorder)
+	if !ok {
+		return nil
+	}
+	return recorder.RecordCyberPolicy(ctx, req.Clone(), metadata)
 }
 
 func (c *Coordinator) checkBlocking(ctx context.Context, req Request) Decision {

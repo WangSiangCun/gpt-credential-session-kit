@@ -625,29 +625,74 @@ func (s *adminServiceImpl) UpdateUserBalance(ctx context.Context, userID int64, 
 	}
 
 	if balanceDiff != 0 {
+		adjustmentID := fmt.Sprintf("ADM-%d-%d", userID, time.Now().UnixNano())
 		code, err := GenerateRedeemCode()
 		if err != nil {
 			logger.LegacyPrintf("service.admin", "failed to generate adjustment redeem code: %v", err)
-			return user, nil
-		}
+		} else {
+			adjustmentID = code
+			adjustmentRecord := &RedeemCode{
+				Code:   code,
+				Type:   AdjustmentTypeAdminBalance,
+				Value:  balanceDiff,
+				Status: StatusUsed,
+				UsedBy: &user.ID,
+				Notes:  notes,
+			}
+			now := time.Now()
+			adjustmentRecord.UsedAt = &now
 
-		adjustmentRecord := &RedeemCode{
-			Code:   code,
-			Type:   AdjustmentTypeAdminBalance,
-			Value:  balanceDiff,
-			Status: StatusUsed,
-			UsedBy: &user.ID,
-			Notes:  notes,
+			if err := s.redeemCodeRepo.Create(ctx, adjustmentRecord); err != nil {
+				logger.LegacyPrintf("service.admin", "failed to create balance adjustment redeem code: %v", err)
+			}
 		}
-		now := time.Now()
-		adjustmentRecord.UsedAt = &now
-
-		if err := s.redeemCodeRepo.Create(ctx, adjustmentRecord); err != nil {
-			logger.LegacyPrintf("service.admin", "failed to create balance adjustment redeem code: %v", err)
+		if balanceDiff > 0 {
+			s.dispatchAdminRechargeNotification(user, balanceDiff, adjustmentID)
 		}
 	}
 
 	return user, nil
+}
+
+func (s *adminServiceImpl) dispatchAdminRechargeNotification(user *User, amount float64, adjustmentID string) {
+	if s == nil || s.notificationEmails == nil || user == nil || amount <= 0 || strings.TrimSpace(user.Email) == "" {
+		return
+	}
+	input := NotificationEmailSendInput{
+		Event:          NotificationEmailEventBalanceAdminRecharge,
+		Locale:         notificationEmailLocaleChinese,
+		RecipientEmail: user.Email,
+		RecipientName:  firstNonEmpty(user.Username, user.Email),
+		UserID:         user.ID,
+		SourceType:     "admin_balance_adjustment",
+		SourceID:       adjustmentID,
+		Variables: map[string]string{
+			"recharge_amount": fmt.Sprintf("%.2f", amount),
+			"current_balance": fmt.Sprintf("%.2f", user.Balance),
+			"adjustment_id":   adjustmentID,
+		},
+	}
+	go func() {
+		emailCtx, cancel := context.WithTimeout(context.Background(), emailSendTimeout)
+		defer cancel()
+		if resolver, ok := s.notificationEmails.(adminRechargeLocaleResolver); ok {
+			input.Locale = resolver.ResolveRecipientLocaleWithFallback(
+				emailCtx,
+				user.ID,
+				user.Email,
+				notificationEmailLocaleChinese,
+			)
+		}
+		if err := s.notificationEmails.Send(emailCtx, input); err != nil {
+			logger.LegacyPrintf(
+				"service.admin",
+				"admin recharge notification email failed: user_id=%d adjustment_id=%s err=%v",
+				user.ID,
+				adjustmentID,
+				err,
+			)
+		}
+	}()
 }
 
 func (s *adminServiceImpl) tryAccrueAffiliateRebateForAdminRecharge(ctx context.Context, userID int64, operation string, amount float64) {
@@ -1323,6 +1368,12 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 	if input.ExpiresAt != nil && !input.ExpiresAt.After(time.Now()) {
 		return nil, ErrRedeemCodeExpired
 	}
+	if input.BatchUserOnce && input.GlobalUserOnce {
+		return nil, infraerrors.BadRequest("REDEEM_USER_ONCE_CONFLICT", "batch and global user restrictions cannot both be enabled")
+	}
+	if input.Type == RedeemTypeInvitation && (input.BatchUserOnce || input.GlobalUserOnce) {
+		return nil, infraerrors.BadRequest("REDEEM_BATCH_USER_ONCE_UNSUPPORTED", "batch user restriction is not supported for invitation codes")
+	}
 
 	// 如果是订阅类型，验证必须有 GroupID
 	if input.Type == RedeemTypeSubscription {
@@ -1339,6 +1390,15 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 		}
 	}
 
+	var batchID *string
+	if input.BatchUserOnce {
+		id, err := GenerateRedeemBatchID()
+		if err != nil {
+			return nil, fmt.Errorf("generate redeem batch id: %w", err)
+		}
+		batchID = &id
+	}
+
 	codes := make([]RedeemCode, 0, input.Count)
 	for i := 0; i < input.Count; i++ {
 		codeValue, err := GenerateRedeemCode()
@@ -1346,11 +1406,14 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 			return nil, err
 		}
 		code := RedeemCode{
-			Code:      codeValue,
-			Type:      input.Type,
-			Value:     input.Value,
-			Status:    StatusUnused,
-			ExpiresAt: input.ExpiresAt,
+			Code:           codeValue,
+			Type:           input.Type,
+			Value:          input.Value,
+			Status:         StatusUnused,
+			ExpiresAt:      input.ExpiresAt,
+			BatchID:        batchID,
+			BatchUserOnce:  input.BatchUserOnce,
+			GlobalUserOnce: input.GlobalUserOnce,
 		}
 		// 订阅类型专用字段
 		if input.Type == RedeemTypeSubscription {

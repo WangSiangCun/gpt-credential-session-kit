@@ -3,9 +3,10 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import RedeemView from '../RedeemView.vue'
 
-const { listRedeemCodes, batchUpdateRedeemCodes, getAllGroups, showSuccess, showError, showInfo } =
+const { listRedeemCodes, generateRedeemCodes, batchUpdateRedeemCodes, getAllGroups, showSuccess, showError, showInfo } =
   vi.hoisted(() => ({
     listRedeemCodes: vi.fn(),
+    generateRedeemCodes: vi.fn(),
     batchUpdateRedeemCodes: vi.fn(),
     getAllGroups: vi.fn(),
     showSuccess: vi.fn(),
@@ -17,7 +18,7 @@ vi.mock('@/api/admin', () => ({
   adminAPI: {
     redeem: {
       list: listRedeemCodes,
-      generate: vi.fn(),
+      generate: generateRedeemCodes,
       delete: vi.fn(),
       batchDelete: vi.fn(),
       batchUpdate: batchUpdateRedeemCodes,
@@ -105,6 +106,7 @@ describe('admin RedeemView batch update', () => {
     document.body.innerHTML = ''
 
     listRedeemCodes.mockReset()
+    generateRedeemCodes.mockReset()
     batchUpdateRedeemCodes.mockReset()
     getAllGroups.mockReset()
     showSuccess.mockReset()
@@ -142,6 +144,7 @@ describe('admin RedeemView batch update', () => {
       pages: 1
     })
     batchUpdateRedeemCodes.mockResolvedValue({ updated: 1, message: 'ok' })
+    generateRedeemCodes.mockResolvedValue([])
     getAllGroups.mockResolvedValue([])
   })
 
@@ -183,5 +186,44 @@ describe('admin RedeemView batch update', () => {
       notes: 'maintenance'
     })
     expect(showSuccess).toHaveBeenCalledWith('admin.redeem.batchUpdateSuccess')
+  })
+
+  it('submits the per-user batch restriction when enabled', async () => {
+    const wrapper = mount(RedeemView, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          TablePageLayout: {
+            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+          },
+          DataTable: DataTableStub,
+          Pagination: true,
+          ConfirmDialog: true,
+          Select: SelectStub,
+          GroupBadge: true,
+          GroupOptionItem: true,
+          Icon: true,
+          Teleport: true
+        }
+      }
+    })
+
+    await flushPromises()
+    await wrapper.get('[data-test="generate-open"]').trigger('click')
+    await wrapper.get('[data-test="batch-user-once"]').trigger('click')
+    await wrapper.get('[data-test="generate-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(generateRedeemCodes).toHaveBeenCalledWith(
+      1,
+      'balance',
+      10,
+      undefined,
+      undefined,
+      undefined,
+      true,
+      false
+    )
   })
 })

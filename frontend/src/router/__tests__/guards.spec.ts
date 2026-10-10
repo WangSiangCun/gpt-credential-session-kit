@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { resolveCompletedSetupRedirectPath } from '@/router/setupRedirect'
+import { resolveAuthenticatedHomePath, resolveCompletedSetupRedirectPath } from '@/router/setupRedirect'
 
 // Mock 导航加载状态
 vi.mock('@/composables/useNavigationLoading', () => {
@@ -81,7 +81,7 @@ function simulateGuard(
       if (authState.backendModeEnabled && !authState.isAdmin) {
         return null
       }
-      return authState.isAdmin ? '/admin/dashboard' : '/dashboard'
+      return resolveAuthenticatedHomePath(authState.isAdmin)
     }
     if (authState.backendModeEnabled && !authState.isAuthenticated) {
       const allowed = ['/login', '/key-usage', '/setup', '/payment/result']
@@ -201,14 +201,14 @@ describe('路由守卫逻辑', () => {
       hasPendingAuthSession: false,
     }
 
-    it('访问 /login 重定向到 /dashboard', () => {
+    it('访问 /login 重定向到可用渠道', () => {
       const redirect = simulateGuard('/login', { requiresAuth: false }, authState)
-      expect(redirect).toBe('/dashboard')
+      expect(redirect).toBe('/available-channels')
     })
 
-    it('访问 /register 重定向到 /dashboard', () => {
+    it('访问 /register 重定向到可用渠道', () => {
       const redirect = simulateGuard('/register', { requiresAuth: false }, authState)
-      expect(redirect).toBe('/dashboard')
+      expect(redirect).toBe('/available-channels')
     })
 
     it('访问 /dashboard 允许通过', () => {
@@ -528,5 +528,18 @@ describe('路由守卫逻辑', () => {
       const redirect = simulateGuard('/email-verify', { requiresAuth: false }, authState)
       expect(redirect).toBe('/login')
     })
+  })
+})
+
+
+describe('merged authenticated landing destinations', () => {
+  it.each([
+    [false, false, '/available-channels'],
+    [false, true, '/admin/accounts'],
+    [true, false, '/admin/dashboard'],
+  ] as const)('preserves role destination for admin=%s observer=%s', (admin, observer, destination) => {
+    expect(resolveAuthenticatedHomePath(admin, observer)).toBe(destination)
+    expect(resolveCompletedSetupRedirectPath(true, admin, observer)).toBe(destination)
+    expect(resolveCompletedSetupRedirectPath(false, admin, observer)).toBe('/login')
   })
 })

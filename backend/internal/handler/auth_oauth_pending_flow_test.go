@@ -1194,7 +1194,7 @@ func TestCreateOIDCOAuthAccountWithoutPromoCodeDoesNotApplyPromo(t *testing.T) {
 	promoRepo := newOAuthPendingFlowPromoRepoStub("WELCOME2024", 25)
 	emailCache := &oauthPendingFlowEmailCacheStub{
 		verificationCodes: map[string]*service.VerificationCodeData{
-			"no-promo@example.com": {
+			"nopromo@example.com": {
 				Code:      "246810",
 				CreatedAt: time.Now().UTC(),
 				ExpiresAt: time.Now().UTC().Add(15 * time.Minute),
@@ -1223,7 +1223,7 @@ func TestCreateOIDCOAuthAccountWithoutPromoCodeDoesNotApplyPromo(t *testing.T) {
 		Save(ctx)
 	require.NoError(t, err)
 
-	body := bytes.NewBufferString(`{"email":"no-promo@example.com","verify_code":"246810","password":"secret-123"}`)
+	body := bytes.NewBufferString(`{"email":"nopromo@example.com","verify_code":"246810","password":"secret-123"}`)
 	recorder := httptest.NewRecorder()
 	ginCtx, _ := gin.CreateTestContext(recorder)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/oauth/oidc/create-account", body)
@@ -1236,7 +1236,7 @@ func TestCreateOIDCOAuthAccountWithoutPromoCodeDoesNotApplyPromo(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Empty(t, promoRepo.applyCalls)
-	createdUser, err := client.User.Query().Where(dbuser.EmailEQ("no-promo@example.com")).Only(ctx)
+	createdUser, err := client.User.Query().Where(dbuser.EmailEQ("nopromo@example.com")).Only(ctx)
 	require.NoError(t, err)
 	require.Zero(t, createdUser.Balance)
 }
@@ -1245,7 +1245,7 @@ func TestCreateOIDCOAuthAccountDoesNotApplyPromoWhenDisabled(t *testing.T) {
 	promoRepo := newOAuthPendingFlowPromoRepoStub("WELCOME2024", 25)
 	emailCache := &oauthPendingFlowEmailCacheStub{
 		verificationCodes: map[string]*service.VerificationCodeData{
-			"promo-disabled@example.com": {
+			"promodisabled@example.com": {
 				Code:      "246810",
 				CreatedAt: time.Now().UTC(),
 				ExpiresAt: time.Now().UTC().Add(15 * time.Minute),
@@ -1275,7 +1275,7 @@ func TestCreateOIDCOAuthAccountDoesNotApplyPromoWhenDisabled(t *testing.T) {
 		Save(ctx)
 	require.NoError(t, err)
 
-	body := bytes.NewBufferString(`{"email":"promo-disabled@example.com","verify_code":"246810","password":"secret-123"}`)
+	body := bytes.NewBufferString(`{"email":"promodisabled@example.com","verify_code":"246810","password":"secret-123"}`)
 	recorder := httptest.NewRecorder()
 	ginCtx, _ := gin.CreateTestContext(recorder)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/oauth/oidc/create-account", body)
@@ -1288,7 +1288,7 @@ func TestCreateOIDCOAuthAccountDoesNotApplyPromoWhenDisabled(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Empty(t, promoRepo.applyCalls)
-	createdUser, err := client.User.Query().Where(dbuser.EmailEQ("promo-disabled@example.com")).Only(ctx)
+	createdUser, err := client.User.Query().Where(dbuser.EmailEQ("promodisabled@example.com")).Only(ctx)
 	require.NoError(t, err)
 	require.Zero(t, createdUser.Balance)
 }

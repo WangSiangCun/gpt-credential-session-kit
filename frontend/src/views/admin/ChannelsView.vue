@@ -27,6 +27,7 @@
               class="w-40"
               @change="loadChannels"
             />
+
           </div>
 
           <!-- Right: Actions -->
@@ -1648,13 +1649,12 @@ async function handleSubmit() {
   }
 }
 
-// ── Toggle status ──
+// Toggle status
 async function toggleChannelStatus(channel: Channel) {
   const newStatus = channel.status === 'active' ? 'disabled' : 'active'
   try {
     await adminAPI.channels.update(channel.id, { status: newStatus })
     if (filters.status && filters.status !== newStatus) {
-      // Item no longer matches the active filter — reload list
       await loadChannels()
     } else {
       channel.status = newStatus

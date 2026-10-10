@@ -444,6 +444,17 @@ func (s *UsageService) ListWithFilters(ctx context.Context, params pagination.Pa
 	return logs, result, nil
 }
 
+// GetChannelRequestTimelines returns compact recent-request summaries for the
+// requested channels. The repository performs one partitioned aggregate query
+// so polling does not cause one query per channel.
+func (s *UsageService) GetChannelRequestTimelines(ctx context.Context, channelIDs []int64, requestCount int) (map[int64]*ChannelRequestTimeline, error) {
+	rows, err := s.usageRepo.GetChannelRequestTimelines(ctx, channelIDs, requestCount)
+	if err != nil {
+		return nil, fmt.Errorf("get channel request timelines: %w", err)
+	}
+	return rows, nil
+}
+
 // GetGlobalStats returns global usage stats for a time range.
 func (s *UsageService) GetGlobalStats(ctx context.Context, startTime, endTime time.Time) (*usagestats.UsageStats, error) {
 	stats, err := s.usageRepo.GetGlobalStats(ctx, startTime, endTime)

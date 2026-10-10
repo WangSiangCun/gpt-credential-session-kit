@@ -702,6 +702,14 @@
                 {{ t('admin.users.groups') }}
               </button>
 
+              <button
+                @click="handleSendEmail(user); closeActionMenu()"
+                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+              >
+                <Icon name="mail" size="sm" class="text-gray-400" :stroke-width="2" />
+                {{ t('admin.users.sendEmail') }}
+              </button>
+
               <div class="my-1 border-t border-gray-100 dark:border-dark-700"></div>
 
               <!-- Deposit -->
@@ -789,6 +797,7 @@
     <UserBalanceHistoryModal :show="showBalanceHistoryModal" :user="balanceHistoryUser" @close="closeBalanceHistoryModal" @deposit="handleDepositFromHistory" @withdraw="handleWithdrawFromHistory" />
     <GroupReplaceModal :show="showGroupReplaceModal" :user="groupReplaceUser" :old-group="groupReplaceOldGroup" :all-groups="allGroups" @close="closeGroupReplaceModal" @success="loadUsers" />
     <UserAttributesConfigModal :show="showAttributesModal" @close="handleAttributesModalClose" />
+    <UserEmailModal :show="showEmailModal" :user="emailUser" @close="closeEmailModal" />
   </AppLayout>
 </template>
 
@@ -831,6 +840,7 @@ import UserAllowedGroupsModal from '@/components/admin/user/UserAllowedGroupsMod
 import UserBalanceModal from '@/components/admin/user/UserBalanceModal.vue'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
 import GroupReplaceModal from '@/components/admin/user/GroupReplaceModal.vue'
+import UserEmailModal from '@/components/admin/user/UserEmailModal.vue'
 
 const appStore = useAppStore()
 
@@ -1342,6 +1352,7 @@ const pagination = reactive({
 
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
+const showEmailModal = ref(false)
 const showBulkEditModal = ref(false)
 const showDeleteDialog = ref(false)
 const bulkDeleteIds = ref<number[]>([])
@@ -1352,6 +1363,7 @@ const showPlatformQuotaModal = ref(false)
 const editingUser = ref<AdminUser | null>(null)
 const deletingUser = ref<AdminUser | null>(null)
 const viewingUser = ref<AdminUser | null>(null)
+const emailUser = ref<AdminUser | null>(null)
 const platformQuotaUser = ref<AdminUser | null>(null)
 
 const handlePlatformQuota = (user: AdminUser) => {
@@ -1775,6 +1787,16 @@ const handleViewApiKeys = (user: AdminUser) => {
 const closeApiKeysModal = () => {
   showApiKeysModal.value = false
   viewingUser.value = null
+}
+
+const handleSendEmail = (user: AdminUser) => {
+  emailUser.value = user
+  showEmailModal.value = true
+}
+
+const closeEmailModal = () => {
+  showEmailModal.value = false
+  emailUser.value = null
 }
 
 const handleAllowedGroups = (user: AdminUser) => {

@@ -12,7 +12,7 @@ import { useAdminComplianceStore } from '@/stores/adminCompliance'
 import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
 import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
-import { resolveCompletedSetupRedirectPath } from './setupRedirect'
+import { resolveAuthenticatedHomePath, resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
 
 /**
@@ -254,6 +254,26 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/activities',
+    name: 'Activities',
+    component: () => import('@/views/user/ActivitiesView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: '活动中心'
+    }
+  },
+  {
+    path: '/lottery/:token',
+    name: 'Lottery',
+    component: () => import('@/views/user/LotteryView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: '抽奖活动'
+    }
+  },
+  {
     path: '/affiliate',
     name: 'Affiliate',
     component: () => import('@/views/user/AffiliateView.vue'),
@@ -288,6 +308,17 @@ const routes: RouteRecordRaw[] = [
       requiresSupportTickets: true,
       title: 'Support Tickets',
       titleKey: 'supportTickets.title'
+    }
+  },
+  {
+    path: '/account-market',
+    name: 'AccountMarket',
+    component: () => import('@/views/user/AccountMarketView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'My Accounts',
+      titleKey: 'nav.accountMarket'
     }
   },
   {
@@ -330,14 +361,13 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/purchase',
     name: 'PurchaseSubscription',
-    component: () => import('@/views/user/PaymentView.vue'),
+    component: () => import('@/views/user/RechargeBenefitsView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Purchase Subscription',
-      titleKey: 'nav.buySubscription',
-      descriptionKey: 'purchase.description',
-      requiresPayment: true
+      title: 'Recharge & Benefits',
+      titleKey: 'nav.rechargeBenefits',
+      descriptionKey: 'purchase.description'
     }
   },
   {
@@ -445,6 +475,18 @@ const routes: RouteRecordRaw[] = [
     name: 'AdminRequestCaptures',
     component: () => import('@/views/admin/RequestCaptureView.vue'),
     meta: { requiresAuth: true, requiresAdmin: true, requiresRequestCapture: true, titleKey: 'admin.requestCapture.title' }
+  },
+  {
+    path: '/admin/leaderboards',
+    name: 'AdminLeaderboards',
+    component: () => import('@/views/admin/LeaderboardsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Leaderboards',
+      titleKey: 'leaderboards.title',
+      descriptionKey: 'leaderboards.description'
+    }
   },
   {
     path: '/admin/ops',
@@ -597,6 +639,33 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/intelligence-test',
+    name: 'IntelligenceTest',
+    component: () => import('@/views/user/IntelligenceTestView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: '智力测试'
+    }
+  },
+  {
+    path: '/admin/intelligence-test',
+    name: 'AdminIntelligenceTest',
+    component: () => import('@/views/admin/IntelligenceTestView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, title: '智力测试' }
+  },
+  {
+    path: '/admin/account-market',
+    name: 'AdminAccountMarket',
+    component: () => import('@/views/admin/AccountMarketView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Account Earnings',
+      titleKey: 'nav.accountMarketAdmin'
+    }
+  },
+  {
     path: '/admin/plugins',
     name: 'AdminPlugins',
     component: () => import('@/views/admin/PluginsView.vue'),
@@ -667,6 +736,16 @@ const routes: RouteRecordRaw[] = [
       title: 'Redeem Code Management',
       titleKey: 'admin.redeem.title',
       descriptionKey: 'admin.redeem.description'
+    }
+  },
+  {
+    path: '/admin/activities',
+    name: 'AdminActivities',
+    component: () => import('@/views/admin/ActivitiesView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: '活动中心'
     }
   },
   {
@@ -928,8 +1007,7 @@ router.beforeEach(async (to, _from, next) => {
         }
         return
       }
-      // Admin users go to admin dashboard, regular users go to user dashboard
-      next(authStore.isAdmin ? '/admin/dashboard' : authStore.isObserver ? '/admin/accounts' : '/dashboard')
+      next(resolveAuthenticatedHomePath(authStore.isAdmin, authStore.isObserver))
       return
     }
     // Model Plaza:公开路由但受「启用开关 + 可选强制登录」双重控制(后端同口径 fail-closed)

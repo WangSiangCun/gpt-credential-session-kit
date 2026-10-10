@@ -58,6 +58,16 @@ export interface UserSupportedModel {
   pricing: UserSupportedModelPricing | null
 }
 
+export interface UserPublicChannelAccount {
+  name: string
+  email?: string
+  plan_type?: string
+  official_direct: boolean
+  status: string
+  available: boolean
+  quota_remaining_percent?: number | null
+}
+
 /**
  * 渠道下单个平台的子视图：用户可访问的分组 + 该平台支持的模型。
  * 后端把一个渠道按平台聚合成 sections，前端可以把渠道名作为 row-group
@@ -72,7 +82,30 @@ export interface UserChannelPlatformSection {
 export interface UserAvailableChannel {
   name: string
   description: string
+  quota_remaining_percent?: number | null
+  accounts?: UserPublicChannelAccount[]
   platforms: UserChannelPlatformSection[]
+}
+
+export interface ChannelRequestTimelineSegment {
+  index: number
+  status: 'success' | 'failed'
+  first_token_ms?: number | null
+}
+
+export interface ChannelRequestTimelineItem {
+  name: string
+  total_requests: number
+  average_first_token_ms: number | null
+  average_actual_cost: number
+  average_cache_hit_rate?: number | null
+  segments: ChannelRequestTimelineSegment[]
+}
+
+export interface ChannelRequestTimelineResponse {
+  request_count: number
+  refresh_seconds: number
+  channels: ChannelRequestTimelineItem[]
 }
 
 /** 列出当前用户可见的「可用渠道」（与 /groups/available 保持一致，返回平数组）。 */
@@ -83,6 +116,13 @@ export async function getAvailable(options?: { signal?: AbortSignal }): Promise<
   return data
 }
 
-export const userChannelsAPI = { getAvailable }
+export async function getRequestTimeline(options?: { signal?: AbortSignal }): Promise<ChannelRequestTimelineResponse> {
+  const { data } = await apiClient.get<ChannelRequestTimelineResponse>('/channels/request-timeline', {
+    signal: options?.signal
+  })
+  return data
+}
+
+export const userChannelsAPI = { getAvailable, getRequestTimeline }
 
 export default userChannelsAPI

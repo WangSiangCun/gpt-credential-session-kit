@@ -12,6 +12,7 @@ import (
 type redeemRejectRepo struct {
 	code      RedeemCode
 	useCalled bool
+	created   []RedeemCode
 }
 
 func (r *redeemRejectRepo) Create(ctx context.Context, code *RedeemCode) error {
@@ -19,7 +20,117 @@ func (r *redeemRejectRepo) Create(ctx context.Context, code *RedeemCode) error {
 }
 
 func (r *redeemRejectRepo) CreateBatch(ctx context.Context, codes []RedeemCode) error {
-	panic("unexpected CreateBatch call")
+	r.created = append([]RedeemCode(nil), codes...)
+	return nil
+}
+
+func TestGenerateCodesAssignsOneSharedRestrictedBatch(t *testing.T) {
+	redeemRepo := &redeemRejectRepo{}
+	redeemService := NewRedeemService(redeemRepo, nil, nil, nil, nil, nil, nil, nil)
+
+	codes, err := redeemService.GenerateCodes(context.Background(), GenerateCodesRequest{
+		Count:         3,
+		Type:          RedeemTypeBalance,
+		Value:         10,
+		BatchUserOnce: true,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, codes, 3)
+	require.Len(t, redeemRepo.created, 3)
+	require.NotNil(t, codes[0].BatchID)
+	require.Len(t, *codes[0].BatchID, 32)
+	for _, code := range codes {
+		require.True(t, code.BatchUserOnce)
+		require.Equal(t, codes[0].BatchID, code.BatchID)
+	}
+}
+
+func TestGenerateCodesLeavesBatchFieldsEmptyWhenRestrictionDisabled(t *testing.T) {
+	redeemRepo := &redeemRejectRepo{}
+	redeemService := NewRedeemService(redeemRepo, nil, nil, nil, nil, nil, nil, nil)
+
+	codes, err := redeemService.GenerateCodes(context.Background(), GenerateCodesRequest{
+		Count: 2,
+		Type:  RedeemTypeBalance,
+		Value: 10,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, codes, 2)
+	for _, code := range codes {
+		require.False(t, code.BatchUserOnce)
+		require.False(t, code.GlobalUserOnce)
+		require.Nil(t, code.BatchID)
+	}
+}
+
+func TestGenerateCodesMarksCodesAsGloballyLimited(t *testing.T) {
+	redeemRepo := &redeemRejectRepo{}
+	redeemService := NewRedeemService(redeemRepo, nil, nil, nil, nil, nil, nil, nil)
+
+	codes, err := redeemService.GenerateCodes(context.Background(), GenerateCodesRequest{
+		Count:          2,
+		Type:           RedeemTypeBalance,
+		Value:          10,
+		GlobalUserOnce: true,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, codes, 2)
+	for _, code := range codes {
+		require.True(t, code.GlobalUserOnce)
+		require.False(t, code.BatchUserOnce)
+		require.Nil(t, code.BatchID)
+	}
+}
+
+func TestGenerateCodesRejectsConflictingUserOnceRestrictions(t *testing.T) {
+	redeemRepo := &redeemRejectRepo{}
+	redeemService := NewRedeemService(redeemRepo, nil, nil, nil, nil, nil, nil, nil)
+
+	_, err := redeemService.GenerateCodes(context.Background(), GenerateCodesRequest{
+		Count:          2,
+		Type:           RedeemTypeBalance,
+		Value:          10,
+		BatchUserOnce:  true,
+		GlobalUserOnce: true,
+	})
+
+	require.Error(t, err)
+	require.Equal(t, "REDEEM_USER_ONCE_CONFLICT", infraerrors.Reason(err))
+	require.Empty(t, redeemRepo.created)
+}
+
+func TestGenerateCodesRejectsBatchRestrictionForInvitationCodes(t *testing.T) {
+	redeemRepo := &redeemRejectRepo{}
+	redeemService := NewRedeemService(redeemRepo, nil, nil, nil, nil, nil, nil, nil)
+
+	_, err := redeemService.GenerateCodes(context.Background(), GenerateCodesRequest{
+		Count:         2,
+		Type:          RedeemTypeInvitation,
+		BatchUserOnce: true,
+	})
+
+	require.Error(t, err)
+	require.True(t, infraerrors.IsBadRequest(err))
+	require.Equal(t, "REDEEM_BATCH_USER_ONCE_UNSUPPORTED", infraerrors.Reason(err))
+	require.Empty(t, redeemRepo.created)
+}
+
+func TestGenerateCodesRejectsGlobalRestrictionForInvitationCodes(t *testing.T) {
+	redeemRepo := &redeemRejectRepo{}
+	redeemService := NewRedeemService(redeemRepo, nil, nil, nil, nil, nil, nil, nil)
+
+	_, err := redeemService.GenerateCodes(context.Background(), GenerateCodesRequest{
+		Count:          2,
+		Type:           RedeemTypeInvitation,
+		GlobalUserOnce: true,
+	})
+
+	require.Error(t, err)
+	require.True(t, infraerrors.IsBadRequest(err))
+	require.Empty(t, redeemRepo.created)
 }
 
 func (r *redeemRejectRepo) GetByID(ctx context.Context, id int64) (*RedeemCode, error) {

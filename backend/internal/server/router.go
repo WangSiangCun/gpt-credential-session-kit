@@ -122,6 +122,9 @@ func registerRoutes(
 		routes.RegisterGatewayRoutes(r, h, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg)
 		return
 	}
+	if h.ProviderPricing != nil {
+		r.GET("/api/provider/pricing", h.ProviderPricing.Get)
+	}
 
 	// API v1
 	v1 := r.Group("/api/v1")

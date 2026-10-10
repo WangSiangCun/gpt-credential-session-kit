@@ -188,7 +188,7 @@ export default {
     users: 'Users',
     groups: 'Groups',
     channels: 'Channels',
-    availableChannels: 'Available Channels',
+    availableChannels: "Available Channels / Accounts",
     modelPlaza: 'Model Plaza',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
@@ -209,7 +209,7 @@ export default {
     mySubscriptions: 'My Subscriptions',
     buySubscription: 'Recharge / Subscription',
     recharge: 'Recharge',
-    subscribe: 'Subscription',
+    subscribe: "Subscribe",
     docs: 'Docs',
     myOrders: 'My Orders',
     orderManagement: 'Orders',
@@ -227,7 +227,13 @@ export default {
     contentModeration: 'Content Moderation',
     promptAudit: 'Prompt Audit',
     auditLogs: 'Audit Logs',
-  },
+
+"accountMarket": "My Accounts",
+"accountMarketAdmin": "Account Earnings",
+"leaderboards": "Leaderboards",
+"activities": "Activities",
+"rechargeBenefits": "Recharge & Benefits"
+},
 
   // Auth
   auth: {
@@ -458,7 +464,9 @@ export default {
     invalidResetLinkHint: 'This password reset link is invalid or has expired. Please request a new one.',
     requestNewResetLink: 'Request New Reset Link',
     invalidOrExpiredToken: 'The password reset link is invalid or has expired. Please request a new one.'
-  },
+  ,
+"emailLocalPartInvalid": "The part before {'@'} may contain only letters and numbers"
+},
 
   // Step-up (sudo) 2FA prompt
   stepUp: {
@@ -470,4 +478,13 @@ export default {
   },
 
   // Dashboard
+
+"qqGroup": {
+    "open": "Join QQ Group",
+    "title": "Join QQ Group",
+    "scanTitle": "Connect with the community",
+    "scanHint": "Scan the QR code below with the QQ mobile app",
+    "qrAlt": "QQ group QR code",
+    "notConfigured": "The group QR code has not been configured"
+  }
 }

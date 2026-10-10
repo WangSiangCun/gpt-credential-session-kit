@@ -25,6 +25,17 @@
         ></textarea>
         <p class="input-hint">{{ t('admin.accounts.notesHint') }}</p>
       </div>
+      <div class="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-3 dark:border-dark-600">
+        <div>
+          <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            {{ t('admin.accounts.publicOfficialDirect') }}
+          </label>
+          <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.publicOfficialDirectHint') }}
+          </p>
+        </div>
+        <Toggle v-model="publicOfficialDirect" data-testid="public-official-direct-toggle" />
+      </div>
 
       <div v-if="account.platform === 'openai' && account.type === 'oauth' && !isSparkShadow" class="rounded-lg bg-gray-50 p-3 dark:bg-dark-800">
         <label class="flex items-center gap-2 text-sm"><input v-model="openaiModelAliases" type="checkbox" data-testid="openai-model-aliases" />{{ t('priorityScheduling.modelAliases') }}</label>
@@ -2038,6 +2049,8 @@
           <button
             type="button"
             data-testid="edit-openai-flatten-namespaces-toggle"
+            role="switch"
+            :aria-checked="openaiFlattenNamespacesEnabled"
             @click="openaiFlattenNamespacesEnabled = !openaiFlattenNamespacesEnabled"
             :class="[
               'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
@@ -2249,13 +2262,47 @@
             {{ t('admin.accounts.upstreamBilling.autoProbeHint') }}
           </p>
         </div>
-        <Toggle
-          :model-value="upstreamBillingAutoProbeEnabled"
-          data-testid="upstream-billing-auto-probe"
-          :aria-label="t('admin.accounts.upstreamBilling.autoProbe')"
-          @update:model-value="handleUpstreamBillingAutoProbeChange"
-        />
-      </div>
+          <Toggle
+           :model-value="upstreamBillingAutoProbeEnabled"
+           data-testid="upstream-billing-auto-probe"
+           :aria-label="t('admin.accounts.upstreamBilling.autoProbe')"
+           @update:model-value="handleUpstreamBillingAutoProbeChange"
+          />
+	      </div>
+
+		<div
+			v-if="account?.platform === 'openai' && account?.type === 'apikey'"
+			class="space-y-3 border-t border-gray-200 pt-4 dark:border-dark-600"
+		>
+			<div class="flex items-center justify-between gap-4">
+				<div>
+					<label class="input-label mb-0">{{ t('admin.accounts.upstreamBilling.balanceNotify') }}</label>
+					<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+						{{ t('admin.accounts.upstreamBilling.balanceNotifyHint') }}
+					</p>
+				</div>
+				<Toggle
+					v-model="upstreamBalanceNotifyEnabled"
+					data-testid="upstream-balance-notify"
+					:aria-label="t('admin.accounts.upstreamBilling.balanceNotify')"
+				/>
+			</div>
+			<div v-if="upstreamBalanceNotifyEnabled" class="max-w-xs">
+				<label class="input-label">{{ t('admin.accounts.upstreamBilling.balanceThreshold') }}</label>
+				<div class="relative">
+					<input
+						v-model.number="upstreamBalanceNotifyThreshold"
+						type="number"
+						min="0"
+						step="0.01"
+						class="input pr-14 font-mono"
+						data-testid="upstream-balance-notify-threshold"
+					/>
+					<span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-gray-400">USD</span>
+				</div>
+				<p class="input-hint">{{ t('admin.accounts.upstreamBilling.balanceThresholdHint') }}</p>
+			</div>
+		</div>
 
       <OllamaCloudUsageSettings
         v-if="account?.ollama_cloud_usage?.eligible"
@@ -3416,6 +3463,7 @@ import {
   HEADER_OVERRIDES_CREDENTIAL_KEY,
   type CnAccountMode,
   type CnApiProtocol,
+  type CnBaseUrlPreset,
   type CnNativeApiProtocol,
   type CnProviderPlatform,
   type HeaderOverrideRow,
@@ -3636,6 +3684,8 @@ interface TempUnschedRuleForm {
 
 // State
 const submitting = ref(false)
+const publicOfficialDirect = ref(false)
+const PUBLIC_OFFICIAL_DIRECT_EXTRA_KEY = 'public_official_direct'
 const editBaseUrl = ref('https://api.anthropic.com')
 const editApiKey = ref('')
 const prismBrowserEnabled = ref(false)
@@ -3794,7 +3844,8 @@ const cnProtocolDescKey = computed(
   () => cnProtocolOptions.value.find(o => o.value === editApiProtocol.value)?.labelKey ?? 'chatCompletions'
 )
 // 点击预设端点：回填 base url 与对应模式/协议。
-function onCnPresetSelect(preset: { mode: CnAccountMode; protocol: CnApiProtocol; url: string }) {
+function onCnPresetSelect(preset: CnBaseUrlPreset) {
+  if (preset.mode !== 'payg' && preset.mode !== 'coding') return
   editAccountMode.value = preset.mode
   editApiProtocol.value = preset.protocol
   editBaseUrl.value = preset.url
@@ -3928,12 +3979,32 @@ const autoResetCredit7dThreshold = ref(100)
 const upstreamBillingAutoProbeEnabled = ref(false)
 const upstreamBillingRateSyncEnabled = ref(false)
 const isNewAPIUpstream = computed(() => props.account?.extra?.upstream_billing_provider === 'new_api')
+const upstreamBalanceNotifyEnabled = ref(false)
+const upstreamBalanceNotifyThreshold = ref<number | null>(10)
+
+watch(upstreamBalanceNotifyEnabled, enabled => {
+	if (enabled) upstreamBillingAutoProbeEnabled.value = true
+})
 const mixedScheduling = ref(false) // For antigravity accounts: enable mixed scheduling
 // 上游ID：直接上游声明请求标识的响应头名，留空不记录。
 const upstreamRequestIdHeader = ref('')
 const readUpstreamRequestIdHeader = (extra: unknown): string => {
   const value = (extra as Record<string, unknown> | undefined)?.upstream_request_id_header
   return typeof value === 'string' ? value : ''
+}
+
+const handleUpstreamBillingRateSyncChange = (enabled: boolean) => {
+  upstreamBillingRateSyncEnabled.value = enabled
+  if (enabled) {
+    upstreamBillingAutoProbeEnabled.value = true
+  }
+}
+
+const handleUpstreamBillingAutoProbeChange = (enabled: boolean) => {
+  upstreamBillingAutoProbeEnabled.value = enabled
+  if (!enabled) {
+    upstreamBillingRateSyncEnabled.value = false
+  }
 }
 const allowOverages = ref(false) // For antigravity accounts: enable AI Credits overages
 const antigravityProjectId = ref('')
@@ -4031,7 +4102,6 @@ const excelBPS403GroupOptions = computed(() => [
 const copilotSDKEnabled = ref(false)
 const openAIRequestTimezone = ref('Asia/Singapore')
 const openaiPassthroughEnabled = ref(false)
-// OpenAI Codex namespace 工具摊平兼容开关（仅 OAuth），缺省关闭即原样保留
 const openaiFlattenNamespacesEnabled = ref(false)
 const openAILongContextBillingEnabled = ref(false)
 // OpenAI 订阅档位（Plus / Pro 20x / Pro 5x / Business Standard / Business Premium / Free）手动覆盖值,
@@ -4374,20 +4444,6 @@ const form = reactive({
   expires_at: null as number | null
 })
 
-const handleUpstreamBillingRateSyncChange = (enabled: boolean) => {
-  upstreamBillingRateSyncEnabled.value = enabled
-  if (enabled) {
-    upstreamBillingAutoProbeEnabled.value = true
-  }
-}
-
-const handleUpstreamBillingAutoProbeChange = (enabled: boolean) => {
-  upstreamBillingAutoProbeEnabled.value = enabled
-  if (!enabled) {
-    upstreamBillingRateSyncEnabled.value = false
-  }
-}
-
 const statusOptions = computed(() => {
   const options = [
     { value: 'active', label: t('common.active') },
@@ -4509,6 +4565,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   mixedScheduling.value = false
   allowOverages.value = false
 	const extra = newAccount.extra as Record<string, unknown> | undefined
+	publicOfficialDirect.value = extra?.[PUBLIC_OFFICIAL_DIRECT_EXTRA_KEY] === true
 	mixedScheduling.value = extra?.mixed_scheduling === true
 	allowOverages.value = extra?.allow_overages === true
 	upstreamRequestIdHeader.value = readUpstreamRequestIdHeader(extra)
@@ -4525,6 +4582,10 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 	upstreamBillingAutoProbeEnabled.value = extra?.upstream_billing_probe_enabled === true
   upstreamBillingRateSyncEnabled.value =
     extra?.upstream_billing_provider !== 'new_api' && upstreamBillingAutoProbeEnabled.value && extra?.upstream_billing_rate_sync_enabled === true
+	upstreamBalanceNotifyEnabled.value = extra?.upstream_balance_notify_enabled === true
+	upstreamBalanceNotifyThreshold.value = typeof extra?.upstream_balance_notify_threshold === 'number'
+		? extra.upstream_balance_notify_threshold
+		: 10
 
   // Load OpenAI passthrough toggle (OpenAI OAuth/SetupToken/API Key)
   excelBPSEnabled.value = false
@@ -5572,6 +5633,15 @@ const handleSubmit = async () => {
     appStore.showError(t(autoBPSError))
     return
   }
+	if (
+		props.account.platform === 'openai' &&
+		props.account.type === 'apikey' &&
+		upstreamBalanceNotifyEnabled.value &&
+		(upstreamBalanceNotifyThreshold.value == null || !Number.isFinite(upstreamBalanceNotifyThreshold.value) || upstreamBalanceNotifyThreshold.value < 0)
+	) {
+		appStore.showError(t('admin.accounts.upstreamBilling.invalidBalanceThreshold'))
+		return
+	}
 
   if (form.status !== 'active' && form.status !== 'inactive' && form.status !== 'error') {
     appStore.showError(t('admin.accounts.pleaseSelectStatus'))
@@ -6211,7 +6281,6 @@ const handleSubmit = async () => {
         delete newExtra.openai_passthrough
         delete newExtra.openai_oauth_passthrough
       }
-      // 缺省即保留 namespace，不写空值，避免 extra 里堆积默认项
       if (props.account.type === 'oauth' && openaiFlattenNamespacesEnabled.value) {
         newExtra.openai_responses_flatten_namespaces = true
       } else {
@@ -6242,6 +6311,17 @@ const handleSubmit = async () => {
         } else {
           newExtra.openai_responses_mode = openAIResponsesMode.value
         }
+			if (upstreamBalanceNotifyEnabled.value) {
+				newExtra.upstream_billing_probe_enabled = true
+			} else {
+				delete newExtra.upstream_billing_probe_enabled
+			}
+			newExtra.upstream_balance_notify_enabled = upstreamBalanceNotifyEnabled.value
+			if (upstreamBalanceNotifyThreshold.value != null && Number.isFinite(upstreamBalanceNotifyThreshold.value)) {
+				newExtra.upstream_balance_notify_threshold = upstreamBalanceNotifyThreshold.value
+			} else {
+				delete newExtra.upstream_balance_notify_threshold
+			}
         if (openAIImagesUrlToB64JsonEnabled.value) {
           newExtra.images_url_to_b64_json = true
         } else {
@@ -6328,12 +6408,6 @@ const handleSubmit = async () => {
       const currentExtra = (updatePayload.extra as Record<string, unknown>) ||
         (props.account.extra as Record<string, unknown>) || {}
       const newExtra: Record<string, unknown> = { ...currentExtra }
-      // 上游倍率自动探测对全部 API-key 平台开放（sub2api 上游即可应答），
-      // Bedrock 凭证无静态 Key 不参与。
-      if (props.account.type === 'apikey') {
-        delete newExtra.upstream_billing_probe_enabled
-        delete newExtra.upstream_billing_rate_sync_enabled
-      }
       // Total quota
       if (editQuotaLimit.value != null && editQuotaLimit.value > 0) {
         newExtra.quota_limit = editQuotaLimit.value
@@ -6382,6 +6456,19 @@ const handleSubmit = async () => {
       writeQuotaNotifyToExtra(newExtra, 'update')
       updatePayload.extra = newExtra
     }
+
+    // This public display flag is independent of platform-specific settings.
+    // Merge it last so every account type can opt in without disturbing the
+    // existing extra fields assembled by the sections above.
+    const publicExtra: Record<string, unknown> = {
+      ...((updatePayload.extra as Record<string, unknown>) || (props.account.extra as Record<string, unknown>) || {})
+    }
+    if (publicOfficialDirect.value) {
+      publicExtra[PUBLIC_OFFICIAL_DIRECT_EXTRA_KEY] = true
+    } else {
+      delete publicExtra[PUBLIC_OFFICIAL_DIRECT_EXTRA_KEY]
+    }
+    updatePayload.extra = publicExtra
 
     // 上游ID头名只在改动时写回 extra，避免用弹窗打开时的快照覆盖运行态键。
     const nextUpstreamRequestIdHeader = upstreamRequestIdHeader.value.trim()

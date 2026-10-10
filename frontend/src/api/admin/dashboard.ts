@@ -340,6 +340,7 @@ export const dashboardAPI = {
   getGroupStats,
   getSnapshotV2,
   getApiKeyUsageTrend,
+  getUserBreakdown,
   getUserUsageTrend,
   getUserSpendingRanking,
   getBatchUsersUsage,

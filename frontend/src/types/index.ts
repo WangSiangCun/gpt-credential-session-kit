@@ -243,7 +243,12 @@ export interface PublicSettings {
   doc_url: string
   home_content: string
   compact_home_enabled: boolean
+  qq_group_enabled?: boolean
+  qq_group_qr_code?: string
+  qq_group_description?: string
   hide_ccs_import_button: boolean
+  cloudcat_store_url: string
+  cloudcat_plans: Array<{ amount: number; pay_amount: number; image: string }>
   payment_enabled: boolean
   risk_control_enabled: boolean
   table_default_page_size: number
@@ -288,6 +293,12 @@ export interface PublicSettings {
   payment_balance_disabled: boolean
   model_plaza_enabled: boolean
   model_plaza_require_auth: boolean
+  available_channels_quota_visible?: boolean
+  available_channels_accounts_visible?: boolean
+  available_channels_cache_hit_rate_visible?: boolean
+  available_channels_timeline_enabled?: boolean
+  available_channels_timeline_request_count?: number
+  available_channels_timeline_refresh_seconds?: number
   plugin_management_enabled: boolean
   /** Opt-in support tickets (sidebar「网站工单」for users and admins). */
   support_ticket_enabled?: boolean
@@ -1106,6 +1117,8 @@ export interface UpstreamBillingData {
   applied_peak_multiplier?: number
   effective_rate_multiplier?: number
   timezone?: string
+	balance_remaining?: number
+	balance_currency?: string
   observed_at: string
 }
 
@@ -1163,6 +1176,10 @@ export interface UpstreamBillingProbeSnapshot {
   // Value this probe wrote into the account rate multiplier; absent when the
   // probe did not sync a rate.
   synced_rate_multiplier?: number
+  balance_alert_state?: 'below' | 'normal' | 'disabled' | 'unavailable'
+  balance_alert_threshold?: number
+  balance_alert_currency?: string
+  balance_alert_sent_at?: string
   // Upstream balance read by the same probe; its status is independent of the
   // rate status above.
   balance?: UpstreamBalanceSnapshot
@@ -1359,6 +1376,8 @@ export interface Account {
       available_count?: number
       credits?: { expires_at?: string }[]
     }
+    upstream_balance_notify_enabled?: boolean
+    upstream_balance_notify_threshold?: number
     codex_credits_snapshot?: {
       credits: { has_credits: boolean; unlimited: boolean; balance: string | null } | null
       fetched_at: number
@@ -2031,6 +2050,9 @@ export interface RedeemCode {
   notes?: string
   group_id?: number | null // 订阅类型专用
   validity_days?: number // 订阅类型专用
+  batch_id?: string | null
+  batch_user_once: boolean
+  global_user_once: boolean
   user?: User
   group?: Group // 关联的分组
 }
@@ -2043,6 +2065,8 @@ export interface GenerateRedeemCodesRequest {
   validity_days?: number // 订阅类型专用
   expires_at?: string | null
   expires_in_days?: number
+  batch_user_once?: boolean
+  global_user_once?: boolean
 }
 
 export interface BatchUpdateRedeemCodeFields {

@@ -11,7 +11,7 @@ export function openAIPlanTypeKey(value?: string | null): string {
 
 // Wire names from openai/codex b1e72963, protocol/src/account.rs.
 export const openAIPlanTypes = [
-  'free', 'go', 'plus', 'prolite', 'pro', 'promax', 'team',
+  'free', 'go', 'plus', 'prolite', 'pro', 'promax', 'pro_20x', 'team',
   'self_serve_business_usage_based', 'self_serve_business_prolite', 'business',
   'enterprise', 'ent26', 'enterprise_cbp_usage_based', 'enterprise_cbp_automation',
   'edu', 'edu_plus', 'edu_pro', 'unknown'
@@ -26,6 +26,7 @@ export function openAIPlanTypeLabel(value?: string | null, display: 'status' | '
     case 'prolite': return 'Pro 100'
     case 'pro': return 'Pro 200'
     case 'promax': return 'Pro 500'
+    case 'pro20x': return 'PRO 20x'
     case 'team':
     case 'selfservebusinessusagebased': return 'Business'
     case 'business': return display === 'status' ? 'Enterprise' : 'Business'

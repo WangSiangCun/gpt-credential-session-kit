@@ -22,9 +22,8 @@ export interface CcSwitchImportDeeplinkInput {
 
 /**
  * Balance query CC Switch runs against the imported provider. CC Switch fills
- * `{{baseUrl}}` with the provider's base URL as stored — Codex and Grok imports
- * carry a trailing `/v1` (see `withV1Endpoint`), Claude ones do not, and users
- * may edit it either way afterwards — then evaluates the script, so the URL
+ * `{{baseUrl}}` with the provider's base URL as stored. Imports omit `/v1`, but
+ * existing providers and manual edits may include it. The URL
  * strips an existing `/v1` instead of blindly appending one (`/v1/v1/usage`
  * is a 404 and CC Switch shows "query failed").
  */
@@ -45,13 +44,8 @@ export const CC_SWITCH_USAGE_SCRIPT = `({
     }
   })`
 
-function withV1Endpoint(baseUrl: string): string {
-  const normalizedBaseUrl = baseUrl.replace(/\/+$/, '')
-  return normalizedBaseUrl.endsWith('/v1') ? normalizedBaseUrl : `${normalizedBaseUrl}/v1`
-}
-
-function withoutTrailingSlashes(baseUrl: string): string {
-  return baseUrl.replace(/\/+$/, '')
+export function normalizeCcSwitchBaseUrl(baseUrl: string): string {
+  return baseUrl.trim().replace(/\/v1\/?$/i, '').replace(/\/+$/, '')
 }
 
 export function resolveCcSwitchImportConfig(
@@ -68,9 +62,7 @@ export function resolveCcSwitchImportConfig(
     case 'openai':
       return {
         app: 'codex',
-        // CC Switch's Codex provider appends the OpenAI-compatible path itself.
-        // Passing /v1 here can make the client request /v1/v1/....
-        endpoint: withoutTrailingSlashes(baseUrl),
+        endpoint: normalizeCcSwitchBaseUrl(baseUrl),
         model: OPENAI_CC_SWITCH_CODEX_MODEL
       }
     case 'gemini':
@@ -81,7 +73,7 @@ export function resolveCcSwitchImportConfig(
     case 'grok':
       return {
         app: 'grokbuild',
-        endpoint: withV1Endpoint(baseUrl),
+        endpoint: normalizeCcSwitchBaseUrl(baseUrl),
         model: GROK_CC_SWITCH_MODEL
       }
     default:

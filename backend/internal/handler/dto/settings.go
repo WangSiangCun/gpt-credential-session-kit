@@ -156,21 +156,26 @@ type SystemSettings struct {
 	GoogleOAuthRedirectURL            string `json:"google_oauth_redirect_url"`
 	GoogleOAuthFrontendRedirectURL    string `json:"google_oauth_frontend_redirect_url"`
 
-	SiteName                    string           `json:"site_name"`
-	SiteLogo                    string           `json:"site_logo"`
-	SiteSubtitle                string           `json:"site_subtitle"`
-	APIBaseURL                  string           `json:"api_base_url"`
-	ContactInfo                 string           `json:"contact_info"`
-	DocURL                      string           `json:"doc_url"`
-	HomeContent                 string           `json:"home_content"`
-	CompactHomeEnabled          bool             `json:"compact_home_enabled"`
-	HideCcsImportButton         bool             `json:"hide_ccs_import_button"`
-	PurchaseSubscriptionEnabled bool             `json:"purchase_subscription_enabled"`
-	PurchaseSubscriptionURL     string           `json:"purchase_subscription_url"`
-	TableDefaultPageSize        int              `json:"table_default_page_size"`
-	TablePageSizeOptions        []int            `json:"table_page_size_options"`
-	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
-	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
+	SiteName                    string                 `json:"site_name"`
+	SiteLogo                    string                 `json:"site_logo"`
+	SiteSubtitle                string                 `json:"site_subtitle"`
+	APIBaseURL                  string                 `json:"api_base_url"`
+	ContactInfo                 string                 `json:"contact_info"`
+	DocURL                      string                 `json:"doc_url"`
+	HomeContent                 string                 `json:"home_content"`
+	CompactHomeEnabled          bool                   `json:"compact_home_enabled"`
+	HideCcsImportButton         bool                   `json:"hide_ccs_import_button"`
+	PurchaseSubscriptionEnabled bool                   `json:"purchase_subscription_enabled"`
+	PurchaseSubscriptionURL     string                 `json:"purchase_subscription_url"`
+	TableDefaultPageSize        int                    `json:"table_default_page_size"`
+	TablePageSizeOptions        []int                  `json:"table_page_size_options"`
+	CustomMenuItems             []CustomMenuItem       `json:"custom_menu_items"`
+	CustomEndpoints             []CustomEndpoint       `json:"custom_endpoints"`
+	QQGroupEnabled              bool                   `json:"qq_group_enabled"`
+	QQGroupQRCode               string                 `json:"qq_group_qr_code"`
+	QQGroupDescription          string                 `json:"qq_group_description"`
+	CloudCatStoreURL            string                 `json:"cloudcat_store_url"`
+	CloudCatPlans               []service.CloudCatPlan `json:"cloudcat_plans"`
 
 	DefaultConcurrency           int                          `json:"default_concurrency"`
 	DefaultBalance               float64                      `json:"default_balance"`
@@ -338,7 +343,13 @@ type SystemSettings struct {
 	GrokVideoSourceURLEnabled      bool   `json:"grok_video_source_url_enabled"`
 
 	// Available Channels feature switch (user-facing aggregate view)
-	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
+	AvailableChannelsEnabled                bool `json:"available_channels_enabled"`
+	AvailableChannelsQuotaVisible           bool `json:"available_channels_quota_visible"`
+	AvailableChannelsAccountsVisible        bool `json:"available_channels_accounts_visible"`
+	AvailableChannelsCacheHitRateVisible    bool `json:"available_channels_cache_hit_rate_visible"`
+	AvailableChannelsTimelineEnabled        bool `json:"available_channels_timeline_enabled"`
+	AvailableChannelsTimelineRequestCount   int  `json:"available_channels_timeline_request_count"`
+	AvailableChannelsTimelineRefreshSeconds int  `json:"available_channels_timeline_refresh_seconds"`
 
 	// Pelican showcase (user-facing gallery of scheduled Pelican HTML results)
 	PelicanShowcaseEnabled bool                          `json:"pelican_showcase_enabled"`
@@ -447,6 +458,11 @@ type PublicSettings struct {
 	TablePageSizeOptions                []int                    `json:"table_page_size_options"`
 	CustomMenuItems                     []CustomMenuItem         `json:"custom_menu_items"`
 	CustomEndpoints                     []CustomEndpoint         `json:"custom_endpoints"`
+	QQGroupEnabled                      bool                     `json:"qq_group_enabled"`
+	QQGroupQRCode                       string                   `json:"qq_group_qr_code"`
+	QQGroupDescription                  string                   `json:"qq_group_description"`
+	CloudCatStoreURL                    string                   `json:"cloudcat_store_url"`
+	CloudCatPlans                       []service.CloudCatPlan   `json:"cloudcat_plans"`
 	DingTalkOAuthEnabled                bool                     `json:"dingtalk_oauth_enabled"`
 	LinuxDoOAuthEnabled                 bool                     `json:"linuxdo_oauth_enabled"`
 	WeChatOAuthEnabled                  bool                     `json:"wechat_oauth_enabled"`
@@ -483,8 +499,14 @@ type PublicSettings struct {
 	ChannelMonitorShowQuota              bool   `json:"channel_monitor_show_quota"`
 	ChannelMonitorHideUserRanking        bool   `json:"channel_monitor_hide_user_ranking"`
 
-	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
-	PelicanShowcaseEnabled   bool `json:"pelican_showcase_enabled"`
+	AvailableChannelsEnabled                bool `json:"available_channels_enabled"`
+	PelicanShowcaseEnabled                  bool `json:"pelican_showcase_enabled"`
+	AvailableChannelsQuotaVisible           bool `json:"available_channels_quota_visible"`
+	AvailableChannelsAccountsVisible        bool `json:"available_channels_accounts_visible"`
+	AvailableChannelsCacheHitRateVisible    bool `json:"available_channels_cache_hit_rate_visible"`
+	AvailableChannelsTimelineEnabled        bool `json:"available_channels_timeline_enabled"`
+	AvailableChannelsTimelineRequestCount   int  `json:"available_channels_timeline_request_count"`
+	AvailableChannelsTimelineRefreshSeconds int  `json:"available_channels_timeline_refresh_seconds"`
 
 	SubscriptionEnabled bool `json:"subscription_enabled"`
 
@@ -532,6 +554,13 @@ type PanelRateLimitSettings struct {
 	HeavyRPM    int  `json:"heavy_rpm"`
 	ExemptAdmin bool `json:"exempt_admin"`
 	PublicIPRPM int  `json:"public_ip_rpm"`
+}
+
+type OpenAI403ProtectionSettings struct {
+	Enabled                bool `json:"enabled"`
+	ThresholdCount         int  `json:"threshold_count"`
+	ThresholdWindowMinutes int  `json:"threshold_window_minutes"`
+	CooldownMinutes        int  `json:"cooldown_minutes"`
 }
 
 // StreamTimeoutSettings 流超时处理配置 DTO

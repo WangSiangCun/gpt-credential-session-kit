@@ -669,6 +669,10 @@ describe("admin SettingsView payment visible method controls", () => {
     getOverloadCooldownSettings.mockReset();
     getRateLimit429CooldownSettings.mockReset();
     updateRateLimit429CooldownSettings.mockReset();
+    getPanelRateLimitSettings.mockReset();
+    getPanelRateLimitSettings.mockResolvedValue({ enabled: true, user_rpm: 240, heavy_rpm: 60, exempt_admin: true, public_ip_rpm: 300 });
+    updatePanelRateLimitSettings.mockReset();
+    updatePanelRateLimitSettings.mockImplementation(async (payload) => payload);
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
     getBetaPolicySettings.mockReset();
@@ -1437,6 +1441,67 @@ describe("admin SettingsView payment visible method controls", () => {
       public_ip_rpm: 300,
     });
     expect(showSuccess).toHaveBeenCalled();
+  });
+
+  it("keeps panel rate limit saving unavailable until loading succeeds and supports retry", async () => {
+    getPanelRateLimitSettings.mockRejectedValueOnce(new Error('offline'));
+    const wrapper = mountView();
+    await flushPromises();
+    await openSecurityTab(wrapper);
+    expect(wrapper.find('[data-testid="panel-rate-limit-save"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain('admin.settings.panelRateLimit.loadFailed');
+    expect(updatePanelRateLimitSettings).not.toHaveBeenCalled();
+    await wrapper.get('[data-testid="panel-rate-limit-retry"]').trigger('click');
+    await flushPromises();
+    expect(wrapper.get('[data-testid="panel-rate-limit-user-rpm"]').isVisible()).toBe(true);
+    expect(updatePanelRateLimitSettings).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it.each(['', '-1', '1.5', '100001'])('rejects invalid panel rate limit %s', async (value) => {
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.get('[data-testid="panel-rate-limit-user-rpm"]').setValue(value);
+    await wrapper.get('[data-testid="panel-rate-limit-save"]').trigger('click');
+    await flushPromises();
+    expect(updatePanelRateLimitSettings).not.toHaveBeenCalled();
+    expect(showError).toHaveBeenCalledWith('admin.settings.panelRateLimit.invalidRpm');
+    wrapper.unmount();
+  });
+
+  it('saves zero panel rate limits, admin exemption, and the disabled switch independently', async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    for (const field of ['user-rpm', 'heavy-rpm', 'public-ip-rpm']) {
+      await wrapper.get(`[data-testid="panel-rate-limit-${field}"]`).setValue('0');
+    }
+    await wrapper.get('[data-testid="panel-rate-limit-exempt-admin"]').setValue(false);
+    await wrapper.get('[data-testid="panel-rate-limit-save"]').trigger('click');
+    await flushPromises();
+    expect(updatePanelRateLimitSettings).toHaveBeenLastCalledWith({ enabled: true, user_rpm: 0, heavy_rpm: 0, public_ip_rpm: 0, exempt_admin: false });
+    await wrapper.get('[data-testid="panel-rate-limit-enabled"]').setValue(false);
+    await wrapper.get('[data-testid="panel-rate-limit-save"]').trigger('click');
+    await flushPromises();
+    expect(updatePanelRateLimitSettings).toHaveBeenLastCalledWith({ enabled: false, user_rpm: 0, heavy_rpm: 0, public_ip_rpm: 0, exempt_admin: false });
+    expect(updateSettings).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it('keeps edited panel rate limits after a save failure and allows retry', async () => {
+    updatePanelRateLimitSettings.mockRejectedValueOnce(new Error('offline'));
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.get('[data-testid="panel-rate-limit-user-rpm"]').setValue('120');
+    await wrapper.get('[data-testid="panel-rate-limit-save"]').trigger('click');
+    await flushPromises();
+    expect(showError).toHaveBeenCalledWith('error');
+    expect(showSuccess).not.toHaveBeenCalled();
+    expect((wrapper.get('[data-testid="panel-rate-limit-user-rpm"]').element as HTMLInputElement).value).toBe('120');
+    await wrapper.get('[data-testid="panel-rate-limit-save"]').trigger('click');
+    await flushPromises();
+    expect(updatePanelRateLimitSettings).toHaveBeenCalledTimes(2);
+    expect(showSuccess).toHaveBeenCalledWith('admin.settings.panelRateLimit.saved');
+    wrapper.unmount();
   });
 
   it("does not render legacy visible payment method controls", async () => {

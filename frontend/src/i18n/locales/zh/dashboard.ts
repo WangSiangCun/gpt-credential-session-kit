@@ -76,7 +76,9 @@ export default {
       copiedHint: '已复制到剪贴板',
       clickToCopy: '点击可复制此端点',
       speedTest: '测速',
-    },
+
+"count": "{count} 个"
+},
     allGroups: '全部分组',
     allStatus: '全部状态',
     columnSettings: '列设置',
@@ -246,23 +248,23 @@ export default {
       },
       grok: {
         description:
-          '配置 Grok CLI、Claude Code、Codex 或 OpenCode，让请求通过当前 Sub2API Grok 分组发送。文本模型走 Responses；图片/视频使用 Imagine 模型 ID 与媒体端点。',
+          "配置 Grok Build、Claude Code、Codex 或 OpenCode，让请求通过当前 Sub2API Grok 分组发送。",
         claudeDescription: '配置 Claude Code，让 Messages API 请求通过当前 Sub2API Grok 分组发送。',
         codexDescription: '配置 Codex，让 Responses API 请求通过当前 Sub2API Grok 分组发送。',
         configTomlHint:
-          '官方路径：~/.grok/config.toml（或 $GROK_HOME）。请填写 [endpoints]（models_base_url / models_list_url / xai_api_base_url / cli_chat_proxy_base_url）、[auth] preferred_method=api_key、[models]、[session]、[features] 图片/视频覆盖。优先 env_key，勿硬编码 api_key；文本模型必须 api_backend=responses。合并前备份，保存后运行 grok inspect。',
+          "如已有 config.toml，请先备份再合并此模型配置。保存后运行 grok inspect 验证生效配置。",
         codexConfigTomlHint:
-          'Codex 官方：wire_api 仅支持 "responses"；优先 env_key，勿与 experimental_bearer_token 混用；非 OpenAI 网关默认 supports_websockets = false（Sub2API 仍可接客户端 WS 并桥接到 HTTP/SSE）。合并前备份 ~/.codex/config.toml。',
+          "如已有 config.toml，请先备份再合并此服务商配置。",
         note:
-          '导出 GROK_MODELS_BASE_URL 与 XAI_API_KEY，将完整 config.toml（endpoints/auth/models/session/features）保存为 ~/.grok/config.toml，运行 grok inspect，再用 /model 选择 grok-4.5（编程场景可用 grok-build-0.1）。',
+          "保存为 ~/.grok/config.toml，然后运行 grok inspect，并在 /model 中选择 grok。",
         noteWindows:
-          '设置 GROK_MODELS_BASE_URL 与 XAI_API_KEY，将完整 config.toml 保存为 %USERPROFILE%\\.grok\\config.toml，运行 grok inspect，再用 /model 选择 grok-4.5（编程场景可用 grok-build-0.1）。',
+          "保存为 %USERPROFILE%\\.grok\\config.toml，然后运行 grok inspect，并在 /model 中选择 grok。",
         claudeNote:
-          '二选一：终端环境变量仅当前会话；~/.claude/settings.json 可持久化。请勿把含 API Key 的文件提交到仓库。',
+          "二选一即可：终端命令仅在当前会话生效；保存 settings.json 可作为用户级持久配置。",
         codexNote:
-          '导出 SUB2API_API_KEY，将 config.toml 保存到 ~/.codex（可用 mkdir -p ~/.codex）。优先 env_key，勿提交密钥。',
+          "将 config.toml 保存到 ~/.codex，并在启动 Codex 前设置 SUB2API_API_KEY。",
         codexNoteWindows:
-          '设置 $env:SUB2API_API_KEY，将 config.toml 保存到 %USERPROFILE%\\.codex。优先 env_key，勿提交密钥。'
+          "将 config.toml 保存到 %USERPROFILE%\\.codex，并在 PowerShell 中设置 SUB2API_API_KEY 后启动 Codex。"
       },
       deepseek: {
         description: '通过当前 DeepSeek 分组配置 Claude Code、Codex 或 OpenCode。',
@@ -371,7 +373,10 @@ export default {
       quota_exhausted: '额度耗尽',
       expired: '已过期'
     }
-  },
+  ,
+"imageSkill": "生图 Skill",
+"downloadImageSkill": "下载 PoolAI 生图 Skill"
+},
 
   // Usage
   usage: {
@@ -536,7 +541,19 @@ export default {
         loadFailed: '加载详情失败，请稍后重试',
       },
     },
-  },
+
+"latencyQueue": "排队",
+"latencyHeaders": "上游响应头",
+"latencyEvent": "首个上游事件",
+"viewCyberContext": "查看安全策略完整上下文",
+"cyberContextTitle": "安全策略完整上下文",
+"cyberFullContext": "完整上下文（未脱敏）",
+"cyberContextNotFound": "未找到该请求的完整上下文。修复上线前保存失败的历史记录无法查看。",
+"cyberContextLoadFailed": "安全策略上下文加载失败。",
+"upstreamStatus": "上游状态",
+"upstreamAccount": "上游账号",
+"upstreamReason": "拦截原因"
+},
 
   // Shared keys for channel monitor (admin + user views)
   monitorCommon: {
@@ -719,7 +736,7 @@ export default {
 
   // Available Channels (user-facing)
   availableChannels: {
-    title: '可用渠道',
+    title: "可用渠道/账号",
     description: '查看您可访问的渠道与其支持的模型、定价',
     searchPlaceholder: '搜索渠道或模型...',
     empty: '暂无可用渠道',
@@ -735,7 +752,9 @@ export default {
       platform: '平台',
       groups: '我可访问的分组',
       supportedModels: '支持模型'
-    },
+    ,
+"accounts": "渠道账号"
+},
     pricing: {
       billingMode: '计费模式',
       billingModeToken: '按 Token',
@@ -757,7 +776,59 @@ export default {
       unitPerMillion: '/ 1M token',
       unitPerRequest: '/ 次'
     }
-  },
+  ,
+"platformFilterLabel": "平台筛选",
+"platformFilterAll": "全部",
+"platformFilterOpenAI": "OpenAI",
+"platformFilterClaude": "Claude",
+"remainingQuota": "剩余额度",
+"accountAvailable": "当前可用",
+"accountUnavailable": "暂不可用",
+"cacheHitRate": "平均缓存命中率",
+"cacheHitRateHelp": "最近请求中，缓存读取 Token 占输入 Token 与缓存读取 Token 总量的比例。",
+"timeline": {
+      "channelScope": "渠道级",
+      "title": "近期请求状态",
+      "helpLabel": "查看近期请求状态说明",
+      "help": "每片代表 1 次请求，最多展示最近 {count} 次；如果实际记录不足，只显示已获取的数量。绿色表示请求成功，红色表示请求失败。平均首字时长只统计成功且有首字数据的请求；平均每次请求花费按这批请求的用户实际扣费计算，失败请求按 0 元计入。",
+      "refresh": "每 {seconds} 秒刷新",
+      "averageFirstToken": "平均首字时长",
+      "averageCost": "平均每次请求花费",
+      "samples": "已获取请求",
+      "empty": "暂无请求记录",
+      "past": "较早",
+      "now": "现在",
+      "success": "成功",
+      "failed": "失败",
+      "segmentTitle": "第 {index} 片 · {state} · 首字 {ttft}",
+      "ariaLabel": "渠道近期请求成功与失败状态条"
+    },
+"account": {
+      "channelAccounts": "本渠道账号",
+      "channelAccountsHint": "同一渠道可包含多个账号",
+      "remainingQuota": "剩余额度",
+      "platformType": "平台 / 类型",
+      "plan": "套餐 / 认证",
+      "status": "账号状态",
+      "schedulable": "允许调度",
+      "concurrency": "并发数",
+      "priority": "优先级",
+      "rateMultiplier": "账号倍率",
+      "groups": "绑定分组",
+      "proxy": "代理",
+      "quota": "额度",
+      "lastUsed": "最后使用",
+      "createdAt": "创建时间",
+      "expiresAt": "到期时间",
+      "notes": "备注",
+      "error": "异常信息",
+      "total": "总额",
+      "daily": "日额",
+      "weekly": "周额",
+      "yes": "是",
+      "no": "否"
+    }
+},
 
   // Model Plaza (public group/model pricing showcase)
   modelPlaza: {
@@ -798,7 +869,7 @@ export default {
       tierHint: '按单次请求的总上下文（输入 + 缓存写入 + 缓存读取）所在档位对整单计价',
       tierHintMarginal: '仅超过阈值的部分按该档计价，输出不加价',
       reasoningMultiplierBadge: '{effort} ×{multiplier}',
-      reasoningMultiplierHint: '最终转发的思考等级为 {effort} 时，整次请求的计费与额度消耗乘以 {multiplier}；未配置的等级按 1 倍计费',
+      reasoningMultiplierHint: "推理强度 {effort} 使用倍率 {multiplier}",
       marginalBadge: '超出部分计价',
       timePricingRowHint: '按 {timezone} 时间，在该时段内发起的请求按本行价格计费',
       timePricingRowHintWeekdays:
@@ -814,7 +885,10 @@ export default {
       perUnitImage: '/ 张',
       perRequest: '按次计费',
       perImage: '按图片计费'
-    },
+    ,
+"maxReasoningMultiplierBadge": "Max ×{multiplier}",
+"maxReasoningMultiplierHint": "最终转发的推理强度为 max 时，整次请求的计费与额度消耗乘以 {multiplier}"
+},
     nav: {
       login: '登录',
       backToDashboard: '回到后台'
@@ -911,7 +985,19 @@ export default {
     userRefreshFailed: '兑换成功，但账户信息刷新失败。',
     subscriptionRefreshFailed: '兑换成功，但订阅状态刷新失败。',
     pleaseEnterCode: '请输入兑换码'
-  },
+  ,
+"errors": {
+      "REDEEM_BATCH_ALREADY_USED": "你已经兑换过这一批兑换码，每位用户仅可兑换一次。",
+      "REDEEM_GLOBAL_ALREADY_USED": "该账号已经兑换过全局限兑兑换码，每个账号只能成功兑换一次。",
+      "REDEEM_CODE_USED": "该兑换码已被使用。",
+      "REDEEM_CODE_EXPIRED": "该兑换码已过期。",
+      "REDEEM_CODE_NOT_FOUND": "兑换码不存在，请检查后重试。",
+      "REDEEM_CODE_LOCKED": "该兑换码正在处理中，请稍后重试。",
+      "REDEEM_RATE_LIMITED": "尝试次数过多，请稍后再试。",
+      "REDEEM_CODE_UNSUPPORTED_TYPE": "该类型兑换码不能在这里使用。",
+      "REDEEM_CODE_INVALID": "兑换码配置无效，请联系管理员。"
+    }
+},
 
   // Profile
   profile: {
@@ -1167,4 +1253,119 @@ export default {
   },
 
   // Admin
+
+"leaderboards": {
+    "kicker": "ADMIN // RANKING GRID",
+    "title": "排行榜",
+    "description": "按时间范围查看用户、模型、分组与密钥的运营排名",
+    "liveData": "实时数据",
+    "from": "开始",
+    "to": "结束",
+    "top": "显示",
+    "refresh": "刷新排行榜",
+    "periodTotal": "当前榜单合计",
+    "rank": "排名",
+    "loading": "正在读取统计数据...",
+    "empty": "当前范围暂无排行数据",
+    "loadFailed": "排行榜加载失败，请稍后重试",
+    "presets": {
+      "today": "今天",
+      "sevenDays": "近 7 天",
+      "thirtyDays": "近 30 天",
+      "custom": "自定义"
+    },
+    "secondary": {
+      "requests": "请求",
+      "tokens": "Token"
+    },
+    "boards": {
+      "spending": {
+        "label": "用户消费",
+        "category": "USER // COST",
+        "subject": "用户",
+        "metric": "实际消费",
+        "hint": "按实际扣除金额排名"
+      },
+      "requests": {
+        "label": "用户请求",
+        "category": "USER // TRAFFIC",
+        "subject": "用户",
+        "metric": "请求数",
+        "hint": "按请求数量排名"
+      },
+      "tokens": {
+        "label": "用户 Token",
+        "category": "USER // TOKENS",
+        "subject": "用户",
+        "metric": "Token 数",
+        "hint": "按总 Token 用量排名"
+      },
+      "models": {
+        "label": "模型使用",
+        "category": "MODEL // USAGE",
+        "subject": "模型",
+        "metric": "实际消费",
+        "hint": "查看模型使用热度与成本"
+      },
+      "groups": {
+        "label": "分组使用",
+        "category": "GROUP // USAGE",
+        "subject": "分组",
+        "metric": "实际消费",
+        "hint": "查看分组流量和成本分布"
+      },
+      "apiKeys": {
+        "label": "密钥请求",
+        "category": "KEY // TRAFFIC",
+        "subject": "API 密钥",
+        "metric": "请求数",
+        "hint": "按密钥请求量聚合排名"
+      },
+      "balances": {
+        "label": "用户余额",
+        "category": "USER // BALANCE",
+        "subject": "用户",
+        "metric": "当前余额",
+        "hint": "查看当前账户余额排名"
+      }
+    },
+    "detail": {
+      "noModels": "该分组暂未配置模型",
+      "noPricing": "未配置定价",
+      "peakNote": "高峰时段 {window} 计费倍率 ×{multiplier}",
+      "longContextDisabledNote": "该分组未启用长上下文阶梯计费，超阈值请求仍按基础档计费，官方阶梯仅供参考"
+    },
+    "table": {
+      "model": "模型",
+      "input": "输入",
+      "output": "输出",
+      "cache": "缓存",
+      "cacheWrite": "写入",
+      "cacheRead": "读取",
+      "cacheWriteShort": "写",
+      "cacheReadShort": "读",
+      "tierHint": "按单次请求的总上下文（输入 + 缓存写入 + 缓存读取）所在档位对整单计价",
+      "tierHintMarginal": "仅超过阈值的部分按该档计价，输出不加价",
+      "maxReasoningMultiplierBadge": "Max ×{multiplier}",
+      "maxReasoningMultiplierHint": "最终转发的推理强度为 max 时，整次请求的计费与额度消耗乘以 {multiplier}",
+      "marginalBadge": "超出部分计价",
+      "timePricingRowHint": "按 {timezone} 时间，在该时段内发起的请求按本行价格计费",
+      "timePricingRowHintWeekdays": "按 {timezone} 时间，仅工作日（周一至周五）在该时段内发起的请求按本行价格计费，周末全天按标准价",
+      "timePricingRowHintPeak": "；本行价格未含高峰倍率，与高峰时段 {window} 重叠的部分实付再乘 ×{multiplier}",
+      "timePricingWeekdays": "工作日",
+      "timePricingRateHint": "生效倍率 {rate} × 时段倍率 {multiplier}",
+      "paidPrice": "实付价格(折后)",
+      "officialPrice": "官方价格",
+      "rate": "折扣倍率",
+      "unitPerMillion": "$ / 1M token",
+      "perUnitRequest": "/ 次",
+      "perUnitImage": "/ 张",
+      "perRequest": "按次计费",
+      "perImage": "按图片计费"
+    },
+    "nav": {
+      "login": "登录",
+      "backToDashboard": "回到后台"
+    }
+  }
 }

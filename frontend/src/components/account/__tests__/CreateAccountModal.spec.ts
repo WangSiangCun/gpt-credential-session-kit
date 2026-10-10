@@ -756,6 +756,23 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(createAccountMock.mock.calls[0]?.[0]?.upstream_billing_probe_enabled).toBe(true)
   })
 
+	it('creates an OpenAI upstream account with a low-balance threshold', async () => {
+		const wrapper = mountModal()
+		await selectButtonByText(wrapper, 'OpenAI')
+		await selectButtonByText(wrapper, 'API Key')
+		await wrapper.get('form#create-account-form input[type="text"]').setValue('relay account')
+		await wrapper.get('form#create-account-form input[type="password"]').setValue('test-api-key')
+		await wrapper.get('[data-testid="upstream-balance-notify"]').trigger('click')
+		await wrapper.get('[data-testid="upstream-balance-notify-threshold"]').setValue('8.25')
+		await wrapper.get('form#create-account-form').trigger('submit.prevent')
+		await flushPromises()
+
+		const payload = createAccountMock.mock.calls[0]?.[0]
+		expect(payload.extra.upstream_balance_notify_enabled).toBe(true)
+		expect(payload.extra.upstream_balance_notify_threshold).toBe(8.25)
+		expect(payload.upstream_billing_probe_enabled).toBe(true)
+	})
+
   it('waits for the initial upstream billing probe before refreshing the account list', async () => {
     let resolveProbe: (() => void) | undefined
     probeUpstreamBillingMock.mockImplementationOnce(

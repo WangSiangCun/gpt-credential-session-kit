@@ -3,8 +3,7 @@
     <Transition name="modal">
       <div
         v-if="show"
-        class="modal-overlay"
-        :class="{ 'drawer-overlay': placement === 'right' }"
+        :class="['modal-overlay', overlayClass, { 'drawer-overlay': placement === 'right' }]"
         :style="zIndexStyle"
         :aria-labelledby="dialogId"
         role="dialog"
@@ -14,7 +13,7 @@
         @click.self="handleClose"
       >
         <!-- Modal panel -->
-        <div ref="dialogRef" :class="['modal-content', widthClasses, contentClass, { 'drawer-content': placement === 'right', 'modal-fullscreen': fullscreen }]" @click.stop>
+        <div ref="dialogRef" :class="['modal-content', widthClasses, contentClass, panelClass, { 'drawer-content': placement === 'right', 'modal-fullscreen': fullscreen }]" @click.stop>
           <!-- Header -->
           <div class="modal-header">
             <h3 :id="dialogId" class="modal-title">
@@ -77,6 +76,8 @@ interface Props {
   /** Optional per-dialog layout overrides; native defaults stay unchanged. */
   contentClass?: string
   bodyClass?: string
+  overlayClass?: string
+  panelClass?: string
 }
 
 interface Emits {

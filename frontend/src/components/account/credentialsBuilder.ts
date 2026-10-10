@@ -453,7 +453,7 @@ export function applyOpenCodeGoProtocolRules(
 }
 
 export interface CnBaseUrlPreset {
-  mode: CnAccountMode
+  mode: CnAccountMode | OpenCodeAccountMode
   protocol: CnApiProtocol
   /** 专有名词，不参与 i18n */
   label: string

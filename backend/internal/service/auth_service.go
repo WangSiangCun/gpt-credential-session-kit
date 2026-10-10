@@ -28,6 +28,7 @@ var (
 	ErrUserNotActive                = infraerrors.Forbidden("USER_NOT_ACTIVE", "user is not active")
 	ErrEmailExists                  = infraerrors.Conflict("EMAIL_EXISTS", "email already exists")
 	ErrEmailReserved                = infraerrors.BadRequest("EMAIL_RESERVED", "email is reserved")
+	ErrEmailLocalPartInvalid        = infraerrors.BadRequest("EMAIL_LOCAL_PART_INVALID", "email local part may contain only letters and numbers")
 	ErrInvalidToken                 = infraerrors.Unauthorized("INVALID_TOKEN", "invalid token")
 	ErrTokenExpired                 = infraerrors.Unauthorized("TOKEN_EXPIRED", "token has expired")
 	ErrAccessTokenExpired           = infraerrors.Unauthorized("ACCESS_TOKEN_EXPIRED", "access token has expired")
@@ -1207,6 +1208,9 @@ func (s *AuthService) validateRegistrationEmailPolicy(ctx context.Context, email
 // 非白名单域名默认直接拒绝（严格白名单模式）；仅当域名限量注册开关开启时，
 // 非白名单域名每个最多允许一个账户。
 func (s *AuthService) validateRegistrationEmailQuota(ctx context.Context, email string) error {
+	if err := validateRegistrationEmailLocalPart(email); err != nil {
+		return err
+	}
 	if s.settingService == nil {
 		return nil
 	}
@@ -1403,6 +1407,23 @@ func isReservedEmail(email string) bool {
 		strings.HasSuffix(normalized, OIDCConnectSyntheticEmailDomain) ||
 		strings.HasSuffix(normalized, WeChatConnectSyntheticEmailDomain) ||
 		strings.HasSuffix(normalized, DingTalkConnectSyntheticEmailDomain)
+}
+
+func validateRegistrationEmailLocalPart(email string) error {
+	local := strings.TrimSpace(email)
+	if isReservedEmail(local) {
+		return nil
+	}
+	at := strings.LastIndexByte(local, '@')
+	if at <= 0 {
+		return ErrEmailLocalPartInvalid
+	}
+	for _, ch := range local[:at] {
+		if (ch < 'a' || ch > 'z') && (ch < 'A' || ch > 'Z') && (ch < '0' || ch > '9') {
+			return ErrEmailLocalPartInvalid
+		}
+	}
+	return nil
 }
 
 // GenerateToken 生成JWT access token

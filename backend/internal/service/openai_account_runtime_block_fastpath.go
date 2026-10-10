@@ -183,7 +183,13 @@ func (s *OpenAIGatewayService) handleOpenAIAccountUpstreamError(ctx context.Cont
 	shouldDisable := s.rateLimitService.handleUpstreamErrorAfterStreakReset(stateCtx, account, statusCode, headers, responseBody)
 	modelTempMatched := statusCode != http.StatusUnauthorized && tempUnschedulableModel(stateCtx, nil) != "" &&
 		len(matchTempUnschedulableRules(account, statusCode, responseBody)) > 0
-	if shouldDisable && !modelTempMatched {
+	// OpenAI-family 403 handling owns its runtime state: below-threshold and
+	// disabled protection only fail over this request, while threshold hits call
+	// notifyAccountSchedulingBlocked with a bounded cooldown. Applying the generic
+	// empty-deadline block here would turn every 403 into a permanent runtime ban.
+	managed403 := statusCode == http.StatusForbidden &&
+		(account.Platform == PlatformOpenAI || IsCNProvider(account.Platform) || account.IsOpenCodeGo())
+	if shouldDisable && !modelTempMatched && !managed403 {
 		s.BlockAccountScheduling(account, time.Time{}, "upstream_disable")
 	}
 	// Pool-mode retryable upstream errors are already bounded by the request-local

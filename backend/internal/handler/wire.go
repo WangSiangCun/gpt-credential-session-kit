@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/Wei-Shaw/sub2api/internal/accountmarket"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
 	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
@@ -45,6 +46,7 @@ func ProvideAdminHandlers(
 	accountOpsHandler *admin.AccountOpsHandler,
 	accountTokenGuardHandler *admin.AccountTokenGuardHandler,
 	accountTokenGuardV2Handler *admin.AccountTokenGuardV2Handler,
+	intelligenceTestHandler *admin.IntelligenceTestHandler,
 	channelHandler *admin.ChannelHandler,
 	channelMonitorHandler *admin.ChannelMonitorHandler,
 	channelMonitorTemplateHandler *admin.ChannelMonitorRequestTemplateHandler,
@@ -54,6 +56,7 @@ func ProvideAdminHandlers(
 	affiliateHandler *admin.AffiliateHandler,
 	complianceHandler *admin.ComplianceHandler,
 	auditLogHandler *admin.AuditLogHandler,
+	lotteryHandler *admin.LotteryHandler,
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
 	ollamaCloudUsage *service.OllamaCloudUsageService,
 	opencodeGoUsage *service.OpenCodeGoUsageService,
@@ -111,6 +114,8 @@ func ProvideAdminHandlers(
 		Affiliate:              affiliateHandler,
 		Compliance:             complianceHandler,
 		AuditLog:               auditLogHandler,
+		Lottery:                lotteryHandler,
+		IntelligenceTest:       intelligenceTestHandler,
 	}
 }
 
@@ -200,6 +205,7 @@ func ProvideAdminSettingHandler(settingService *service.SettingService, emailSer
 
 // ProvideHandlers creates the Handlers struct
 func ProvideHandlers(
+	accountMarketHandler *accountmarket.Handler,
 	authHandler *AuthHandler,
 	userHandler *UserHandler,
 	apiKeyHandler *APIKeyHandler,
@@ -224,12 +230,16 @@ func ProvideHandlers(
 	modelPlazaHandler *ModelPlazaHandler,
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
+	providerPricingHandler *ProviderPricingHandler,
+	lotteryHandler *LotteryHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 	_ *service.OpenAIQuotaAutoResetService,
 ) *Handlers {
 	return &Handlers{
+		AccountMarket:    accountMarketHandler,
 		Auth:             authHandler,
+		ProviderPricing:  providerPricingHandler,
 		User:             userHandler,
 		APIKey:           apiKeyHandler,
 		Usage:            usageHandler,
@@ -253,6 +263,7 @@ func ProvideHandlers(
 		ModelPlaza:       modelPlazaHandler,
 		AsyncImage:       asyncImageHandler,
 		BatchImage:       batchImageHandler,
+		Lottery:          lotteryHandler,
 	}
 }
 
@@ -282,6 +293,8 @@ var ProviderSet = wire.NewSet(
 	NewModelPlazaHandler,
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
+	NewProviderPricingHandler,
+	NewLotteryHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,
@@ -317,6 +330,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewAccountOpsHandler,
 	admin.NewAccountTokenGuardHandler,
 	admin.NewAccountTokenGuardV2Handler,
+	admin.NewIntelligenceTestHandler,
 	admin.NewChannelHandler,
 	admin.NewChannelMonitorHandler,
 	admin.NewChannelMonitorRequestTemplateHandler,
@@ -326,6 +340,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewComplianceHandler,
 	admin.NewAuditLogHandler,
 	admin.NewRequestCaptureHandler,
+	admin.NewLotteryHandler,
 
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,

@@ -188,7 +188,7 @@ export default {
     users: '用户管理',
     groups: '分组管理',
     channels: '渠道管理',
-    availableChannels: '可用渠道',
+    availableChannels: "可用渠道/账号",
     modelPlaza: '模型广场',
     subscriptions: '订阅管理',
     accounts: '账号管理',
@@ -224,10 +224,16 @@ export default {
     supportTickets: '网站工单',
     riskControl: '风控中心',
     securityAudit: '安全审计',
-    contentModeration: '内容审计',
+    contentModeration: "内容审核",
     promptAudit: '提示词审计',
     auditLogs: '操作日志',
-  },
+
+"accountMarket": "我的账号",
+"accountMarketAdmin": "账号收益管理",
+"leaderboards": "排行榜",
+"activities": "活动",
+"rechargeBenefits": "充值与权益"
+},
 
   // Auth
   auth: {
@@ -457,7 +463,9 @@ export default {
     invalidResetLinkHint: '此密码重置链接无效或已过期。请重新请求一个新链接。',
     requestNewResetLink: '请求新的重置链接',
     invalidOrExpiredToken: '密码重置链接无效或已过期。请重新请求一个新链接。'
-  },
+  ,
+"emailLocalPartInvalid": "邮箱 {'@'} 前只能使用英文字母和数字"
+},
 
   // Step-up（敏感操作二次验证）
   stepUp: {
@@ -469,4 +477,13 @@ export default {
   },
 
   // Dashboard
+
+"qqGroup": {
+    "open": "加入QQ群",
+    "title": "加入QQ群",
+    "scanTitle": "和大家一起交流",
+    "scanHint": "打开手机 QQ 扫描下方二维码",
+    "qrAlt": "QQ群二维码",
+    "notConfigured": "管理员尚未配置群二维码"
+  }
 }

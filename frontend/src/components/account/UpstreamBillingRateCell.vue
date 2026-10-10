@@ -3,6 +3,7 @@
     <div class="flex h-6 items-center gap-1">
       <HelpTooltip class="-ml-1" width-class="w-max max-w-[calc(100vw-2rem)]" data-testid="upstream-billing-details">
         <template #trigger>
+          <span v-if="hasCurrentBalance" class="font-mono text-sm font-semibold" :class="balanceClass" data-testid="upstream-billing-balance">{{ formattedBalance }}</span>
           <button
             v-if="canConfigure && (snapshot?.status === 'unsupported' || account.extra?.upstream_billing_provider === 'new_api')"
             type="button"
@@ -24,6 +25,9 @@
           </span>
         </template>
         <div class="space-y-1">
+          <p v-if="hasCurrentBalance" data-testid="upstream-billing-current-balance">{{ t('admin.accounts.upstreamBilling.currentBalance', { value: formattedBalance }) }}</p>
+          <p v-else-if="hasBalanceData" data-testid="upstream-billing-last-balance">{{ t('admin.accounts.upstreamBilling.lastBalance', { value: formattedLastBalance }) }}</p>
+          <p v-else-if="data">{{ t('admin.accounts.upstreamBilling.balanceUnavailable') }}</p>
           <template v-if="hasEffectiveRate && data">
             <p>{{ t('admin.accounts.upstreamBilling.groupRate', { value: data.group_rate_multiplier }) }}</p>
             <p v-if="data.user_rate_multiplier != null">
@@ -265,6 +269,39 @@ const lastDetectedRate = computed(() => {
     ? Number(value.toPrecision(12))
     : null
 })
+const balanceValue = computed(() => {
+	const value = data.value?.balance_remaining
+	return typeof value === 'number' && Number.isFinite(value) ? value : null
+})
+const balanceCurrency = computed(() => {
+	const value = data.value?.balance_currency
+	return typeof value === 'string' && /^[A-Z]{3}$/.test(value) ? value : ''
+})
+const hasBalanceData = computed(() => balanceValue.value != null && balanceCurrency.value !== '')
+const hasCurrentBalance = computed(() =>
+	hasBalanceData.value &&
+	validTimestamps.value &&
+	!stale.value &&
+	['ok', 'failed'].includes(snapshot.value?.status ?? '')
+)
+const formatBalance = (value: number | null, currency: string) => {
+	if (value == null || !currency) return '-'
+	try {
+		return new Intl.NumberFormat(undefined, {
+			style: 'currency',
+			currency,
+			minimumFractionDigits: 2,
+			maximumFractionDigits: 2
+		}).format(value)
+	} catch {
+		return `${currency} ${value.toFixed(2)}`
+	}
+}
+const formattedBalance = computed(() => formatBalance(balanceValue.value, balanceCurrency.value))
+const formattedLastBalance = computed(() => formatBalance(balanceValue.value, balanceCurrency.value))
+const balanceClass = computed(() => snapshot.value?.balance_alert_state === 'below'
+	? 'text-red-600 dark:text-red-400'
+	: 'text-emerald-700 dark:text-emerald-400')
 const formatElapsedSince = (timestamp: number) => {
   if (!Number.isFinite(timestamp)) return '-'
   const elapsedMinutes = Math.max(0, Math.floor((props.now - timestamp) / 60_000))

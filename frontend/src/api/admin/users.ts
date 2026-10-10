@@ -187,6 +187,19 @@ export async function updateBalance(
   return data
 }
 
+/** Send a plain-text email to the user's stored email address. */
+export async function sendEmail(
+  id: number,
+  subject: string,
+  body: string
+): Promise<{ message: string }> {
+  const { data } = await apiClient.post<{ message: string }>(`/admin/users/${id}/send-email`, {
+    subject,
+    body
+  })
+  return data
+}
+
 /**
  * Update user concurrency
  * @param id - User ID
@@ -412,6 +425,7 @@ export const usersAPI = {
   update,
   delete: deleteUser,
   updateBalance,
+  sendEmail,
   updateConcurrency,
   batchUpdateLimits,
   toggleStatus,

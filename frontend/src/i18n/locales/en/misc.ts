@@ -288,6 +288,11 @@ export default {
   // Payment System
   payment: {
     title: 'Recharge / Subscription',
+    sourceTabs: {
+      label: 'Payment source',
+      native: 'Platform payments',
+      cloudcat: 'CloudCat resale shop',
+    },
     amountLabel: 'Amount',
     paymentAmount: 'Payment Amount',
     creditedBalance: 'Credited Balance',

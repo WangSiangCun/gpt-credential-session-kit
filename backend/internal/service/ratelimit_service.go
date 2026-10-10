@@ -1109,26 +1109,32 @@ func (s *RateLimitService) handleOpenAI403(ctx context.Context, account *Account
 		"account may be suspended or lack permissions",
 	)
 
-	if s.openAI403CounterCache == nil {
-		s.handleAuthError(ctx, account, msg)
+	settings := DefaultOpenAI403ProtectionSettings()
+	if s.settingService != nil {
+		loaded, err := s.settingService.GetOpenAI403ProtectionSettings(ctx)
+		if err != nil {
+			slog.Warn("openai_403_protection_settings_read_failed", "account_id", account.ID, "error", err)
+		} else {
+			settings = loaded
+		}
+	}
+	if !settings.Enabled || s.openAI403CounterCache == nil {
 		return true
 	}
 
-	count, err := s.openAI403CounterCache.IncrementOpenAI403Count(ctx, account.ID, openAI403CounterWindowMinutes)
+	count, err := s.openAI403CounterCache.IncrementOpenAI403Count(ctx, account.ID, settings.ThresholdWindowMinutes)
 	if err != nil {
 		slog.Warn("openai_403_increment_failed", "account_id", account.ID, "error", err)
-		s.handleAuthError(ctx, account, msg)
 		return true
 	}
 
-	if count >= openAI403DisableThreshold {
-		msg = fmt.Sprintf("%s | consecutive_403=%d/%d", msg, count, openAI403DisableThreshold)
-		s.handleAuthError(ctx, account, msg)
+	if count < int64(settings.ThresholdCount) {
+		slog.Warn("openai_403_below_protection_threshold", "account_id", account.ID, "count", count, "threshold", settings.ThresholdCount)
 		return true
 	}
 
-	until := time.Now().Add(time.Duration(openAI403CooldownMinutesDefault) * time.Minute)
-	reason := fmt.Sprintf("OpenAI 403 temporary cooldown (%d/%d): %s", count, openAI403DisableThreshold, msg)
+	until := time.Now().Add(time.Duration(settings.CooldownMinutes) * time.Minute)
+	reason := fmt.Sprintf("OpenAI 403 temporary cooldown (%d/%d): %s", count, settings.ThresholdCount, msg)
 	s.notifyAccountSchedulingBlocked(account, until, "openai_403_temp")
 	if err := s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, reason); err != nil {
 		slog.Warn("openai_403_set_temp_unschedulable_failed", "account_id", account.ID, "error", err)
@@ -1141,8 +1147,9 @@ func (s *RateLimitService) handleOpenAI403(ctx context.Context, account *Account
 		"account_id", account.ID,
 		"until", until,
 		"count", count,
-		"threshold", openAI403DisableThreshold,
+		"threshold", settings.ThresholdCount,
 	)
+	s.ResetOpenAI403Counter(ctx, account.ID)
 	return true
 }
 

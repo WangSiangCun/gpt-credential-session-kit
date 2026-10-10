@@ -39240,6 +39240,9 @@ type RedeemCodeMutation struct {
 	expires_at       *time.Time
 	validity_days    *int
 	addvalidity_days *int
+	batch_id         *string
+	batch_user_once  *bool
+	global_user_once *bool
 	clearedFields    map[string]struct{}
 	user             *int64
 	cleareduser      bool
@@ -39849,6 +39852,127 @@ func (m *RedeemCodeMutation) ResetValidityDays() {
 	m.addvalidity_days = nil
 }
 
+// SetBatchID sets the "batch_id" field.
+func (m *RedeemCodeMutation) SetBatchID(s string) {
+	m.batch_id = &s
+}
+
+// BatchID returns the value of the "batch_id" field in the mutation.
+func (m *RedeemCodeMutation) BatchID() (r string, exists bool) {
+	v := m.batch_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBatchID returns the old "batch_id" field's value of the RedeemCode entity.
+// If the RedeemCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RedeemCodeMutation) OldBatchID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBatchID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBatchID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBatchID: %w", err)
+	}
+	return oldValue.BatchID, nil
+}
+
+// ClearBatchID clears the value of the "batch_id" field.
+func (m *RedeemCodeMutation) ClearBatchID() {
+	m.batch_id = nil
+	m.clearedFields[redeemcode.FieldBatchID] = struct{}{}
+}
+
+// BatchIDCleared returns if the "batch_id" field was cleared in this mutation.
+func (m *RedeemCodeMutation) BatchIDCleared() bool {
+	_, ok := m.clearedFields[redeemcode.FieldBatchID]
+	return ok
+}
+
+// ResetBatchID resets all changes to the "batch_id" field.
+func (m *RedeemCodeMutation) ResetBatchID() {
+	m.batch_id = nil
+	delete(m.clearedFields, redeemcode.FieldBatchID)
+}
+
+// SetBatchUserOnce sets the "batch_user_once" field.
+func (m *RedeemCodeMutation) SetBatchUserOnce(b bool) {
+	m.batch_user_once = &b
+}
+
+// BatchUserOnce returns the value of the "batch_user_once" field in the mutation.
+func (m *RedeemCodeMutation) BatchUserOnce() (r bool, exists bool) {
+	v := m.batch_user_once
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBatchUserOnce returns the old "batch_user_once" field's value of the RedeemCode entity.
+// If the RedeemCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RedeemCodeMutation) OldBatchUserOnce(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBatchUserOnce is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBatchUserOnce requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBatchUserOnce: %w", err)
+	}
+	return oldValue.BatchUserOnce, nil
+}
+
+// ResetBatchUserOnce resets all changes to the "batch_user_once" field.
+func (m *RedeemCodeMutation) ResetBatchUserOnce() {
+	m.batch_user_once = nil
+}
+
+// SetGlobalUserOnce sets the "global_user_once" field.
+func (m *RedeemCodeMutation) SetGlobalUserOnce(b bool) {
+	m.global_user_once = &b
+}
+
+// GlobalUserOnce returns the value of the "global_user_once" field in the mutation.
+func (m *RedeemCodeMutation) GlobalUserOnce() (r bool, exists bool) {
+	v := m.global_user_once
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGlobalUserOnce returns the old "global_user_once" field's value of the RedeemCode entity.
+// If the RedeemCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RedeemCodeMutation) OldGlobalUserOnce(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGlobalUserOnce is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGlobalUserOnce requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGlobalUserOnce: %w", err)
+	}
+	return oldValue.GlobalUserOnce, nil
+}
+
+// ResetGlobalUserOnce resets all changes to the "global_user_once" field.
+func (m *RedeemCodeMutation) ResetGlobalUserOnce() {
+	m.global_user_once = nil
+}
+
 // SetUserID sets the "user" edge to the User entity by id.
 func (m *RedeemCodeMutation) SetUserID(id int64) {
 	m.user = &id
@@ -39950,7 +40074,7 @@ func (m *RedeemCodeMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RedeemCodeMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 14)
 	if m.code != nil {
 		fields = append(fields, redeemcode.FieldCode)
 	}
@@ -39984,6 +40108,15 @@ func (m *RedeemCodeMutation) Fields() []string {
 	if m.validity_days != nil {
 		fields = append(fields, redeemcode.FieldValidityDays)
 	}
+	if m.batch_id != nil {
+		fields = append(fields, redeemcode.FieldBatchID)
+	}
+	if m.batch_user_once != nil {
+		fields = append(fields, redeemcode.FieldBatchUserOnce)
+	}
+	if m.global_user_once != nil {
+		fields = append(fields, redeemcode.FieldGlobalUserOnce)
+	}
 	return fields
 }
 
@@ -40014,6 +40147,12 @@ func (m *RedeemCodeMutation) Field(name string) (ent.Value, bool) {
 		return m.GroupID()
 	case redeemcode.FieldValidityDays:
 		return m.ValidityDays()
+	case redeemcode.FieldBatchID:
+		return m.BatchID()
+	case redeemcode.FieldBatchUserOnce:
+		return m.BatchUserOnce()
+	case redeemcode.FieldGlobalUserOnce:
+		return m.GlobalUserOnce()
 	}
 	return nil, false
 }
@@ -40045,6 +40184,12 @@ func (m *RedeemCodeMutation) OldField(ctx context.Context, name string) (ent.Val
 		return m.OldGroupID(ctx)
 	case redeemcode.FieldValidityDays:
 		return m.OldValidityDays(ctx)
+	case redeemcode.FieldBatchID:
+		return m.OldBatchID(ctx)
+	case redeemcode.FieldBatchUserOnce:
+		return m.OldBatchUserOnce(ctx)
+	case redeemcode.FieldGlobalUserOnce:
+		return m.OldGlobalUserOnce(ctx)
 	}
 	return nil, fmt.Errorf("unknown RedeemCode field %s", name)
 }
@@ -40131,6 +40276,27 @@ func (m *RedeemCodeMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetValidityDays(v)
 		return nil
+	case redeemcode.FieldBatchID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBatchID(v)
+		return nil
+	case redeemcode.FieldBatchUserOnce:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBatchUserOnce(v)
+		return nil
+	case redeemcode.FieldGlobalUserOnce:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGlobalUserOnce(v)
+		return nil
 	}
 	return fmt.Errorf("unknown RedeemCode field %s", name)
 }
@@ -40203,6 +40369,9 @@ func (m *RedeemCodeMutation) ClearedFields() []string {
 	if m.FieldCleared(redeemcode.FieldGroupID) {
 		fields = append(fields, redeemcode.FieldGroupID)
 	}
+	if m.FieldCleared(redeemcode.FieldBatchID) {
+		fields = append(fields, redeemcode.FieldBatchID)
+	}
 	return fields
 }
 
@@ -40231,6 +40400,9 @@ func (m *RedeemCodeMutation) ClearField(name string) error {
 		return nil
 	case redeemcode.FieldGroupID:
 		m.ClearGroupID()
+		return nil
+	case redeemcode.FieldBatchID:
+		m.ClearBatchID()
 		return nil
 	}
 	return fmt.Errorf("unknown RedeemCode nullable field %s", name)
@@ -40272,6 +40444,15 @@ func (m *RedeemCodeMutation) ResetField(name string) error {
 		return nil
 	case redeemcode.FieldValidityDays:
 		m.ResetValidityDays()
+		return nil
+	case redeemcode.FieldBatchID:
+		m.ResetBatchID()
+		return nil
+	case redeemcode.FieldBatchUserOnce:
+		m.ResetBatchUserOnce()
+		return nil
+	case redeemcode.FieldGlobalUserOnce:
+		m.ResetGlobalUserOnce()
 		return nil
 	}
 	return fmt.Errorf("unknown RedeemCode field %s", name)

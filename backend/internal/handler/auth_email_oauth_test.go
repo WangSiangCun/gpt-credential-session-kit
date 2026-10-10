@@ -253,11 +253,11 @@ func TestCompleteEmailOAuthRegistrationUsesAffiliateCodeFromPendingSession(t *te
 		SetProviderType("google").
 		SetProviderKey("google").
 		SetProviderSubject("google-aff-user").
-		SetResolvedEmail("pending-aff@example.com").
+		SetResolvedEmail("pendingaff@example.com").
 		SetRedirectTo("/dashboard").
 		SetBrowserSessionKey("browser-aff-key").
 		SetUpstreamIdentityClaims(map[string]any{
-			"email":            "pending-aff@example.com",
+			"email":            "pendingaff@example.com",
 			"email_verified":   true,
 			"username":         "pending-aff",
 			"provider":         "google",
@@ -284,7 +284,7 @@ func TestCompleteEmailOAuthRegistrationUsesAffiliateCodeFromPendingSession(t *te
 	handler.completeEmailOAuthRegistration(c, "google")
 
 	require.Equal(t, http.StatusOK, recorder.Code)
-	user, err := client.User.Query().Where(dbuser.EmailEQ("pending-aff@example.com")).Only(ctx)
+	user, err := client.User.Query().Where(dbuser.EmailEQ("pendingaff@example.com")).Only(ctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, user.PasswordHash)
 	require.NotEqual(t, "secret-123", user.PasswordHash)

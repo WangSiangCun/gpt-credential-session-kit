@@ -22,6 +22,9 @@ func (r *usageBatchLogRepoStub) GetByID(context.Context, int64) (*UsageLog, erro
 	return nil, nil
 }
 func (r *usageBatchLogRepoStub) Delete(context.Context, int64) error { return nil }
+func (r *usageBatchLogRepoStub) GetChannelRequestTimelines(context.Context, []int64, int) (map[int64]*ChannelRequestTimeline, error) {
+	return map[int64]*ChannelRequestTimeline{}, nil
+}
 func (r *usageBatchLogRepoStub) ListByUser(context.Context, int64, pagination.PaginationParams) ([]UsageLog, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }

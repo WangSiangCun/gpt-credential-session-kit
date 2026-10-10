@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
+    <div class="dashboard-canvas space-y-6">
       <!-- Loading State -->
       <div v-if="loading" class="flex items-center justify-center py-12">
         <LoadingSpinner />
@@ -267,7 +267,7 @@
         <!-- Charts Section -->
         <div class="space-y-6">
           <!-- Date Range Filter -->
-          <div class="card p-4">
+          <div class="card dashboard-date-filter-card p-4">
             <div class="flex flex-wrap items-center gap-4">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300"
@@ -423,18 +423,14 @@ const formatLocalDate = (date: Date): string => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-const getLast24HoursRangeDates = (): { start: string; end: string } => {
-  const end = new Date()
-  const start = new Date(end.getTime() - 24 * 60 * 60 * 1000)
-  return {
-    start: formatLocalDate(start),
-    end: formatLocalDate(end)
-  }
+const getTodayRangeDates = (): { start: string; end: string } => {
+  const today = formatLocalDate(new Date())
+  return { start: today, end: today }
 }
 
 // Date range
 const granularity = ref<'day' | 'hour'>('hour')
-const defaultRange = getLast24HoursRangeDates()
+const defaultRange = getTodayRangeDates()
 const startDate = ref(defaultRange.start)
 const endDate = ref(defaultRange.end)
 

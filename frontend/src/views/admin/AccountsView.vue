@@ -654,6 +654,7 @@ const exportingData = ref(false)
 const probingUpstreamBilling = reactive(new Set<number>())
 const upstreamBillingProbeGloballyEnabled = ref<boolean | undefined>(undefined)
 const upstreamBillingNow = ref(Date.now())
+let lastUpstreamBillingListRefreshMinute = Math.floor(Date.now() / 60_000)
 const upstreamBillingRateETag = ref<string | null>(null)
 const upstreamBillingRateRefreshing = ref(false)
 let upstreamBillingRateAbortController: AbortController | null = null
@@ -1401,6 +1402,16 @@ watch(accounts, (rows) => {
   )
 })
 
+watch(upstreamBillingNow, () => {
+  if (loading.value) return
+  if (typeof document !== 'undefined' && document.hidden) return
+  if (upstreamBillingProbeGloballyEnabled.value !== true || autoRefreshEnabled.value) return
+  const minute = Math.floor(upstreamBillingNow.value / 60_000)
+  if (lastUpstreamBillingListRefreshMinute === minute) return
+  lastUpstreamBillingListRefreshMinute = minute
+  void refreshAccountsIncrementally()
+})
+
 const isAnyModalOpen = computed(() => {
   return (
     newAPIConfigAccount.value !== null ||
@@ -1924,7 +1935,7 @@ const handleBulkDelete = async () => {
     await reload()
   } catch (error) {
     console.error('Failed to bulk delete accounts:', error)
-    appStore.showError(String(error))
+    appStore.showError(extractApiErrorMessage(error, t('common.error')))
   }
 }
 const handleBulkResetStatus = async () => {

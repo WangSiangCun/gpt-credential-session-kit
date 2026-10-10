@@ -80,8 +80,13 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		settingKeyForwardedClientIPModeV2:                   "true",
 		SettingKeySiteName:                                  "Sub2API",
 		SettingKeySiteLogo:                                  "",
+		SettingKeyQQGroupEnabled:                            "true",
+		SettingKeyQQGroupQRCode:                             "/qq-group-default.jpg",
+		SettingKeyQQGroupDescription:                        "扫码加入用户交流群，获取使用帮助与最新动态",
 		SettingKeyPurchaseSubscriptionEnabled:               "false",
 		SettingKeyPurchaseSubscriptionURL:                   "",
+		SettingKeyCloudCatStoreURL:                          "https://catfk.com/shop/5AUO36V9",
+		SettingKeyCloudCatPlans:                             `[{"amount":10,"pay_amount":10,"image":"/payment/10.png"},{"amount":20,"pay_amount":20,"image":"/payment/20.png"},{"amount":50,"pay_amount":50,"image":"/payment/50.png"},{"amount":100,"pay_amount":100,"image":"/payment/100.png"}]`,
 		SettingKeyTableDefaultPageSize:                      "20",
 		SettingKeyTablePageSizeOptions:                      "[10,20,50,100]",
 		SettingKeyCustomMenuItems:                           "[]",
@@ -210,7 +215,13 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyPrismBrowserBaseURL:                  "http://127.0.0.1:8319/v1",
 		// Generate a disabled-by-default bridge key so enabling the feature does
 		// not require a fragile hand-written secret during first-run setup.
-		SettingKeyPrismBrowserAPIKey: defaultPrismBrowserAPIKey(),
+		SettingKeyPrismBrowserAPIKey:                      defaultPrismBrowserAPIKey(),
+		SettingKeyAvailableChannelsQuotaVisible:           "false",
+		SettingKeyAvailableChannelsAccountsVisible:        "false",
+		SettingKeyAvailableChannelsCacheHitRateVisible:    "false",
+		SettingKeyAvailableChannelsTimelineEnabled:        "true",
+		SettingKeyAvailableChannelsTimelineRequestCount:   "1000",
+		SettingKeyAvailableChannelsTimelineRefreshSeconds: "2",
 
 		// Grok compatibility defaults: cross-client mapping stays enabled unless
 		// operators explicitly disable it.
@@ -412,9 +423,14 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		DocURL:                                 settings[SettingKeyDocURL],
 		HomeContent:                            settings[SettingKeyHomeContent],
 		CompactHomeEnabled:                     settings[SettingKeyCompactHomeEnabled] == "true",
+		QQGroupEnabled:                         settings[SettingKeyQQGroupEnabled] == "true",
+		QQGroupQRCode:                          settings[SettingKeyQQGroupQRCode],
+		QQGroupDescription:                     settings[SettingKeyQQGroupDescription],
 		HideCcsImportButton:                    settings[SettingKeyHideCcsImportButton] == "true",
 		PurchaseSubscriptionEnabled:            settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
 		PurchaseSubscriptionURL:                strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
+		CloudCatStoreURL:                       strings.TrimSpace(settings[SettingKeyCloudCatStoreURL]),
+		CloudCatPlans:                          parseCloudCatPlans(settings[SettingKeyCloudCatPlans]),
 		CustomMenuItems:                        settings[SettingKeyCustomMenuItems],
 		CustomEndpoints:                        settings[SettingKeyCustomEndpoints],
 		BackendModeEnabled:                     settings[SettingKeyBackendModeEnabled] == "true",
@@ -852,6 +868,18 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.ChannelMonitorDefaultIntervalSeconds = parseChannelMonitorInterval(
 		settings[SettingKeyChannelMonitorDefaultIntervalSeconds],
 	)
+
+	// Available channels feature (default: disabled; strict true)
+	result.AvailableChannelsEnabled = settings[SettingKeyAvailableChannelsEnabled] == "true"
+	result.AvailableChannelsQuotaVisible = settings[SettingKeyAvailableChannelsQuotaVisible] == "true"
+	result.AvailableChannelsAccountsVisible = normalizeAvailableChannelsAccountsVisible(
+		result.AvailableChannelsQuotaVisible,
+		settings[SettingKeyAvailableChannelsAccountsVisible] != "false",
+	)
+	result.AvailableChannelsCacheHitRateVisible = settings[SettingKeyAvailableChannelsCacheHitRateVisible] == "true"
+	result.AvailableChannelsTimelineEnabled = settings[SettingKeyAvailableChannelsTimelineEnabled] != "false"
+	result.AvailableChannelsTimelineRequestCount = parseAvailableChannelsTimelineRequestCount(settings[SettingKeyAvailableChannelsTimelineRequestCount])
+	result.AvailableChannelsTimelineRefreshSeconds = parseAvailableChannelsTimelineRefreshSeconds(settings[SettingKeyAvailableChannelsTimelineRefreshSeconds])
 	// 默认隐藏吞吐（迁移 206 的隐私默认）：未配置时必须与 setting_public.go 的
 	// 公开读取路径给出同一个值，否则管理端看到“未隐藏”而用户端实际已隐藏。
 	result.ChannelMonitorHideThroughput = !isFalseSettingValue(settings[SettingKeyChannelMonitorHideThroughput])
@@ -1144,6 +1172,33 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	})
 
 	return result
+}
+
+func parseCloudCatPlans(raw string) []CloudCatPlan {
+	var plans []CloudCatPlan
+	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &plans); err != nil {
+		return defaultCloudCatPlans()
+	}
+	valid := make([]CloudCatPlan, 0, len(plans))
+	for _, plan := range plans {
+		if plan.Amount > 0 && plan.PayAmount > 0 && strings.TrimSpace(plan.Image) != "" {
+			plan.Image = strings.TrimSpace(plan.Image)
+			valid = append(valid, plan)
+		}
+	}
+	if len(valid) == 0 {
+		return defaultCloudCatPlans()
+	}
+	return valid
+}
+
+func defaultCloudCatPlans() []CloudCatPlan {
+	return []CloudCatPlan{
+		{Amount: 10, PayAmount: 10, Image: "/payment/10.png"},
+		{Amount: 20, PayAmount: 20, Image: "/payment/20.png"},
+		{Amount: 50, PayAmount: 50, Image: "/payment/50.png"},
+		{Amount: 100, PayAmount: 100, Image: "/payment/100.png"},
+	}
 }
 
 func normalizeOpenAITTFTMode(mode string) string {

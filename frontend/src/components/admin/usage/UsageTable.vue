@@ -1,5 +1,5 @@
 <template>
-  <div :class="flat ? '' : 'card overflow-hidden'">
+  <div :class="flat ? '' : 'card usage-table-shell overflow-hidden'">
     <div
       v-if="showIpGeoToolbar"
       class="flex items-center justify-end gap-2 border-b border-gray-200 px-4 py-2 dark:border-dark-700"
@@ -137,6 +137,17 @@
             >
               {{ t('usage.nativeCompactionV2') }}
             </span>
+            <!-- 请求 ID 列默认隐藏时，管理员仍可从安全策略类型旁打开完整上下文。 -->
+            <button
+              v-if="showCyberContext && resolveUsageRequestType(row) === 'cyber' && row.request_id"
+              type="button"
+              class="shrink-0 rounded p-0.5 text-red-500 transition-colors hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40"
+              :title="t('usage.viewCyberContext')"
+              :aria-label="t('usage.viewCyberContext')"
+              @click.stop="openCyberContext(row)"
+            >
+              <Icon name="eye" size="sm" class="h-3.5 w-3.5" />
+            </button>
           </div>
         </template>
 
@@ -278,6 +289,15 @@
               @click="copyRequestId(row.request_id)"
             >
               <Icon :name="copiedRequestId === row.request_id ? 'check' : 'copy'" size="sm" class="h-3.5 w-3.5" />
+            </button>
+            <button
+              v-if="showCyberContext && resolveUsageRequestType(row) === 'cyber'"
+              type="button"
+              class="shrink-0 rounded p-0.5 text-red-500 transition-colors hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40"
+              :title="t('usage.viewCyberContext')"
+              @click.stop="openCyberContext(row)"
+            >
+              <Icon name="eye" size="sm" class="h-3.5 w-3.5" />
             </button>
           </div>
           <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
@@ -540,6 +560,38 @@
     </div>
   </Teleport>
   <UsageTimingDialog :record="timingRecord" @close="timingRecord = null" />
+
+  <BaseDialog
+    :show="cyberContextVisible"
+    :title="t('usage.cyberContextTitle')"
+    width="extra-wide"
+    @close="closeCyberContext"
+  >
+    <div v-if="cyberContextLoading" class="py-12 text-center text-sm text-gray-500">
+      {{ t('common.loading') }}
+    </div>
+    <div v-else-if="cyberContextError" class="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">
+      {{ cyberContextError }}
+    </div>
+    <div v-else-if="cyberContextEvent" class="space-y-5">
+      <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
+        <dt class="text-gray-500">Request ID</dt>
+        <dd class="break-all font-mono">{{ cyberContextEvent.snapshot.request_id }}</dd>
+        <dt class="text-gray-500">{{ t('usage.model') }}</dt>
+        <dd>{{ cyberContextEvent.snapshot.model || '-' }}</dd>
+        <dt class="text-gray-500">{{ t('usage.upstreamStatus') }}</dt>
+        <dd>{{ cyberContextEvent.scanner_evidence?.upstream_status || '-' }}</dd>
+        <dt class="text-gray-500">{{ t('usage.upstreamAccount') }}</dt>
+        <dd>{{ cyberContextEvent.scanner_evidence?.account_name || cyberContextEvent.scanner_evidence?.account_id || '-' }}</dd>
+        <dt class="text-gray-500">{{ t('usage.upstreamReason') }}</dt>
+        <dd class="break-words text-red-600 dark:text-red-300">{{ cyberContextEvent.scanner_evidence?.upstream_message || '-' }}</dd>
+      </dl>
+      <section>
+        <h4 class="text-sm font-medium text-gray-900 dark:text-white">{{ t('usage.cyberFullContext') }}</h4>
+        <pre class="mt-2 max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-gray-50 p-4 text-sm text-gray-700 dark:bg-dark-900 dark:text-dark-200">{{ cyberContextEvent.snapshot.full_prompt || cyberContextEvent.snapshot.redacted_preview || '-' }}</pre>
+      </section>
+    </div>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
@@ -594,12 +646,16 @@ function accountBilled(row: { total_cost?: number | null; account_stats_cost?: n
 
 
 import DataTable from '@/components/common/DataTable.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import IpGeoCell from '@/components/common/IpGeoCell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { fetchBatch, getEntry } from '@/utils/ipGeoLookup'
 import type { AdminUsageLog } from '@/types'
 import type { Column } from '@/components/common/types'
+import promptAuditAPI from '@/features/prompt-audit/api'
+import { emptyEventFilters } from '@/features/prompt-audit/viewModel'
+import type { PromptAuditEvent } from '@/features/prompt-audit/types'
 
 interface Props {
   data: AdminUsageLog[]
@@ -611,6 +667,8 @@ interface Props {
   showAccountBilling?: boolean
   enableTimingDetails?: boolean
   showUpstreamEndpoint?: boolean
+  /** 管理员专用：允许查看 cyber 请求的完整上下文 */
+  showCyberContext?: boolean
   /** 嵌入统一卡片内使用：去掉自身卡片外观 */
   flat?: boolean
 }
@@ -627,6 +685,7 @@ const props = withDefaults(defineProps<Props>(), {
   showAccountBilling: true,
   enableTimingDetails: false,
   showUpstreamEndpoint: true,
+  showCyberContext: false,
   flat: false
 })
 const emit = defineEmits<{
@@ -637,8 +696,13 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const appStore = useAppStore()
 const copiedRequestId = ref<string | null>(null)
+const cyberContextVisible = ref(false)
+const cyberContextLoading = ref(false)
+const cyberContextError = ref('')
+const cyberContextEvent = ref<PromptAuditEvent | null>(null)
 const showAccountBilling = props.showAccountBilling
 const showUpstreamEndpoint = props.showUpstreamEndpoint
+const showCyberContext = props.showCyberContext
 const ipGeoBatchLoading = ref(false)
 
 // 长上下文计费 x2 徽标展示开关（公开设置，默认开启；未加载/缺失时按开启处理）
@@ -705,6 +769,35 @@ const copyIdentifier = async (value: string, copiedMessage: string) => {
     }, 2000)
   } catch {
     appStore.showError(t('common.copyFailed'))
+  }
+}
+
+const closeCyberContext = () => {
+  cyberContextVisible.value = false
+}
+
+const openCyberContext = async (row: AdminUsageLog) => {
+  if (!row.request_id) return
+  cyberContextVisible.value = true
+  cyberContextLoading.value = true
+  cyberContextError.value = ''
+  cyberContextEvent.value = null
+  try {
+    const filters = emptyEventFilters()
+    filters.request_id = row.request_id
+    const page = await promptAuditAPI.listEvents(filters, 1, 10)
+    const event = page.items.find((item) =>
+      item.scanner_backend === 'upstream_cyber_policy' || item.categories.includes('cyber_policy')
+    )
+    if (!event) {
+      cyberContextError.value = t('usage.cyberContextNotFound')
+      return
+    }
+    cyberContextEvent.value = await promptAuditAPI.getEvent(event.id)
+  } catch {
+    cyberContextError.value = t('usage.cyberContextLoadFailed')
+  } finally {
+    cyberContextLoading.value = false
   }
 }
 

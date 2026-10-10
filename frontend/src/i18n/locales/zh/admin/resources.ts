@@ -375,7 +375,12 @@ export default {
       failedToGenerate: '生成兑换码失败',
       failedToUpdate: '更新兑换码失败',
       failedToDelete: '删除兑换码失败'
-    },
+    ,
+"batchUserOnce": "每位用户限兑一次",
+"batchUserOnceHint": "开启后，同一用户在本次生成的整批兑换码中最多只能使用一个；关闭后可使用本批中的多个不同兑换码。",
+"globalUserOnce": "每位用户全局限兑一次",
+"globalUserOnceHint": "开启后，同一账号在所有开启此选项的兑换码批次中只能成功兑换一次；普通兑换码不受影响。"
+},
 
     // Announcements
     announcements: {

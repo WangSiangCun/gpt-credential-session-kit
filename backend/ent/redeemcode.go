@@ -41,6 +41,12 @@ type RedeemCode struct {
 	GroupID *int64 `json:"group_id,omitempty"`
 	// ValidityDays holds the value of the "validity_days" field.
 	ValidityDays int `json:"validity_days,omitempty"`
+	// BatchID holds the value of the "batch_id" field.
+	BatchID *string `json:"batch_id,omitempty"`
+	// BatchUserOnce holds the value of the "batch_user_once" field.
+	BatchUserOnce bool `json:"batch_user_once,omitempty"`
+	// GlobalUserOnce holds the value of the "global_user_once" field.
+	GlobalUserOnce bool `json:"global_user_once,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the RedeemCodeQuery when eager-loading is set.
 	Edges        RedeemCodeEdges `json:"edges"`
@@ -85,11 +91,13 @@ func (*RedeemCode) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case redeemcode.FieldBatchUserOnce, redeemcode.FieldGlobalUserOnce:
+			values[i] = new(sql.NullBool)
 		case redeemcode.FieldValue:
 			values[i] = new(sql.NullFloat64)
 		case redeemcode.FieldID, redeemcode.FieldUsedBy, redeemcode.FieldGroupID, redeemcode.FieldValidityDays:
 			values[i] = new(sql.NullInt64)
-		case redeemcode.FieldCode, redeemcode.FieldType, redeemcode.FieldStatus, redeemcode.FieldNotes:
+		case redeemcode.FieldCode, redeemcode.FieldType, redeemcode.FieldStatus, redeemcode.FieldNotes, redeemcode.FieldBatchID:
 			values[i] = new(sql.NullString)
 		case redeemcode.FieldUsedAt, redeemcode.FieldCreatedAt, redeemcode.FieldExpiresAt:
 			values[i] = new(sql.NullTime)
@@ -185,6 +193,25 @@ func (_m *RedeemCode) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ValidityDays = int(value.Int64)
 			}
+		case redeemcode.FieldBatchID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field batch_id", values[i])
+			} else if value.Valid {
+				_m.BatchID = new(string)
+				*_m.BatchID = value.String
+			}
+		case redeemcode.FieldBatchUserOnce:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field batch_user_once", values[i])
+			} else if value.Valid {
+				_m.BatchUserOnce = value.Bool
+			}
+		case redeemcode.FieldGlobalUserOnce:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field global_user_once", values[i])
+			} else if value.Valid {
+				_m.GlobalUserOnce = value.Bool
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -273,6 +300,17 @@ func (_m *RedeemCode) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("validity_days=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ValidityDays))
+	builder.WriteString(", ")
+	if v := _m.BatchID; v != nil {
+		builder.WriteString("batch_id=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	builder.WriteString("batch_user_once=")
+	builder.WriteString(fmt.Sprintf("%v", _m.BatchUserOnce))
+	builder.WriteString(", ")
+	builder.WriteString("global_user_once=")
+	builder.WriteString(fmt.Sprintf("%v", _m.GlobalUserOnce))
 	builder.WriteByte(')')
 	return builder.String()
 }

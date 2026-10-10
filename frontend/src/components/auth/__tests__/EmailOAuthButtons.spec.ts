@@ -121,6 +121,26 @@ describe('EmailOAuthButtons', () => {
     expect(wrapper.get('button').text()).toContain('使用 GitHub 登录')
   })
 
+  it('defaults to available channels when no destination was requested', async () => {
+    routeState.query = {}
+    const wrapper = mount(EmailOAuthButtons, {
+      props: {
+        githubEnabled: true,
+        googleEnabled: false,
+      },
+      global: {
+        stubs: {
+          GitHubMark: true,
+          GoogleMark: true,
+        },
+      },
+    })
+
+    await wrapper.get('button').trigger('click')
+
+    expect(wrapper.emitted('start')?.[0]?.[0]).toEqual({ provider: 'github', params: { redirect: '/available-channels' } })
+  })
+
   it('uses compact labels and two columns when GitHub and Google are both enabled', () => {
     const wrapper = mount(EmailOAuthButtons, {
       props: {

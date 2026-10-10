@@ -173,6 +173,30 @@ describe('UpstreamBillingRateCell', () => {
     )
   })
 
+	it('shows the upstream wallet balance and keeps stale values in details only', async () => {
+		const account = makeAccount({
+			extra: {
+				upstream_billing_probe_enabled: true,
+				upstream_billing_probe: {
+					status: 'ok',
+					data: { ...billingData, balance_remaining: 12.34, balance_currency: 'USD' },
+					received_at: '2026-07-13T00:00:00Z',
+					fresh_until: '2026-07-13T01:00:00Z',
+					last_attempt_at: '2026-07-13T00:00:00Z',
+					next_probe_at: '2026-07-13T00:30:00Z',
+					balance_alert_state: 'normal'
+				}
+			}
+		})
+		const wrapper = mount(UpstreamBillingRateCell, { props: { account, now: Date.now() } })
+
+		expect(wrapper.get('[data-testid="upstream-billing-balance"]').text()).toContain('12.34')
+		expect(wrapper.get('[data-testid="upstream-billing-rate"]').text()).toBe('0.60x')
+		await wrapper.setProps({ now: Date.parse('2026-07-13T01:00:00.001Z') })
+		expect(wrapper.find('[data-testid="upstream-billing-balance"]').exists()).toBe(false)
+		expect(wrapper.get('[data-testid="upstream-billing-rate"]').text()).toBe('admin.accounts.upstreamBilling.stale')
+	})
+
   it('uses retained failed data only while it is still fresh', async () => {
     const account = makeAccount({
       extra: {

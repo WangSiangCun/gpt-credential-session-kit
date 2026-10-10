@@ -480,6 +480,7 @@ describe('plan_type helpers', () => {
     it('maps canonical + alias values to friendly labels', () => {
       expect(planTypeDisplayLabel('plus')).toBe('Plus')
       expect(planTypeDisplayLabel('pro')).toBe('Pro 200')
+      expect(planTypeDisplayLabel('pro_20x')).toBe('PRO 20x')
       expect(planTypeDisplayLabel('chatgptpro')).toBe('Pro 200')
       expect(planTypeDisplayLabel('prolite')).toBe('Pro 100')
       expect(planTypeDisplayLabel('free')).toBe('Free')

@@ -1799,6 +1799,18 @@ func init() {
 	redeemcodeDescValidityDays := redeemcodeFields[10].Descriptor()
 	// redeemcode.DefaultValidityDays holds the default value on creation for the validity_days field.
 	redeemcode.DefaultValidityDays = redeemcodeDescValidityDays.Default.(int)
+	// redeemcodeDescBatchID is the schema descriptor for batch_id field.
+	redeemcodeDescBatchID := redeemcodeFields[11].Descriptor()
+	// redeemcode.BatchIDValidator is a validator for the "batch_id" field. It is called by the builders before save.
+	redeemcode.BatchIDValidator = redeemcodeDescBatchID.Validators[0].(func(string) error)
+	// redeemcodeDescBatchUserOnce is the schema descriptor for batch_user_once field.
+	redeemcodeDescBatchUserOnce := redeemcodeFields[12].Descriptor()
+	// redeemcode.DefaultBatchUserOnce holds the default value on creation for the batch_user_once field.
+	redeemcode.DefaultBatchUserOnce = redeemcodeDescBatchUserOnce.Default.(bool)
+	// redeemcodeDescGlobalUserOnce is the schema descriptor for global_user_once field.
+	redeemcodeDescGlobalUserOnce := redeemcodeFields[13].Descriptor()
+	// redeemcode.DefaultGlobalUserOnce holds the default value on creation for the global_user_once field.
+	redeemcode.DefaultGlobalUserOnce = redeemcodeDescGlobalUserOnce.Default.(bool)
 	securitysecretMixin := schema.SecuritySecret{}.Mixin()
 	securitysecretMixinFields0 := securitysecretMixin[0].Fields()
 	_ = securitysecretMixinFields0

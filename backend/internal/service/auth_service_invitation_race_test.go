@@ -154,7 +154,7 @@ func TestAuthService_Register_InvitationCodeSingleUseUnderConcurrency(t *testing
 		go func(i int) {
 			defer wg.Done()
 			<-start
-			email := fmt.Sprintf("race-%d@example.com", i)
+			email := fmt.Sprintf("race%d@example.com", i)
 			_, _, err := svc.RegisterWithVerification(ctx, email, "Password123!", "", "", code, "")
 			results <- err
 		}(i)

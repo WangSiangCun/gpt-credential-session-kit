@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"log/slog"
 	"math"
 	"strconv"
@@ -34,6 +35,65 @@ type UserHandler struct {
 	totpService           *service.TotpService                // 角色提升为管理员的 step-up 门控
 	userService           *service.UserService
 	settingService        *service.SettingService // step-up 功能开关
+	emailService          *service.EmailService
+}
+
+// SetEmailService enables the optional administrator-to-user email action.
+func (h *UserHandler) SetEmailService(emailService *service.EmailService) {
+	h.emailService = emailService
+}
+
+type SendUserEmailRequest struct {
+	Subject string `json:"subject" binding:"required"`
+	Body    string `json:"body" binding:"required"`
+}
+
+// SendEmail sends a text message to the selected user's stored email address.
+// POST /api/v1/admin/users/:id/send-email
+func (h *UserHandler) SendEmail(c *gin.Context) {
+	if h.emailService == nil {
+		response.ErrorFrom(c, service.ErrEmailNotConfigured)
+		return
+	}
+	userID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || userID <= 0 {
+		response.BadRequest(c, "Invalid user ID")
+		return
+	}
+	var req SendUserEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	subject := strings.TrimSpace(req.Subject)
+	body := strings.TrimSpace(req.Body)
+	if subject == "" || body == "" {
+		response.BadRequest(c, "Subject and body are required")
+		return
+	}
+	if len([]rune(subject)) > 200 {
+		response.BadRequest(c, "Subject is too long")
+		return
+	}
+	if len([]rune(body)) > 20000 {
+		response.BadRequest(c, "Body is too long")
+		return
+	}
+	user, err := h.adminService.GetUser(c.Request.Context(), userID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if strings.TrimSpace(user.Email) == "" {
+		response.BadRequest(c, "This user has no email address")
+		return
+	}
+	htmlBody := strings.ReplaceAll(html.EscapeString(body), "\n", "<br>")
+	if err := h.emailService.SendEmail(c.Request.Context(), user.Email, subject, htmlBody); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"message": "Email sent"})
 }
 
 // NewUserHandler creates a new admin user handler

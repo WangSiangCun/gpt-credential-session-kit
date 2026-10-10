@@ -75,6 +75,14 @@ func accountCodexToolCapabilities(account *Account, modelID string) map[string]j
 	parsed, err := url.Parse(baseURL)
 	official := err == nil && (strings.EqualFold(parsed.Hostname(), "api.openai.com") ||
 		(account.IsOpenAIOAuth() && strings.EqualFold(parsed.Hostname(), "chatgpt.com")))
+	if !official {
+		// A model name does not establish a relay's encrypted agent protocol support.
+		// Explicit nulls prevent catalog completion from restoring native defaults.
+		applyCodexToolCapabilities(capabilities, map[string]json.RawMessage{
+			"multi_agent_version":          json.RawMessage("null"),
+			"multi_agent_reasoning_effort": json.RawMessage("null"),
+		}, false)
+	}
 	if account.IsOpenAI() && (isOpenAIGPT6AstraModel(modelID) || openai.IsGPT61SolModelSpelling(modelID)) && official {
 		defaults := map[string]json.RawMessage{
 			"supports_search_tool":  json.RawMessage("true"),

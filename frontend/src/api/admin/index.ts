@@ -35,6 +35,7 @@ import affiliatesAPI from './affiliates'
 import riskControlAPI from './riskControl'
 import adminComplianceAPI from './compliance'
 import auditAPI from './audit'
+import lotteryAPI from './lottery'
 import pluginsAPI from './plugins'
 
 /**
@@ -73,6 +74,7 @@ export const adminAPI = {
   riskControl: riskControlAPI,
   compliance: adminComplianceAPI,
   audit: auditAPI,
+  lottery: lotteryAPI,
   plugins: pluginsAPI
 }
 
@@ -109,6 +111,7 @@ export {
   riskControlAPI,
   adminComplianceAPI,
   auditAPI,
+  lotteryAPI,
   pluginsAPI
 }
 

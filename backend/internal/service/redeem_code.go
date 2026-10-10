@@ -18,8 +18,11 @@ type RedeemCode struct {
 	CreatedAt time.Time
 	ExpiresAt *time.Time
 
-	GroupID      *int64
-	ValidityDays int
+	GroupID        *int64
+	ValidityDays   int
+	BatchID        *string
+	BatchUserOnce  bool
+	GlobalUserOnce bool
 
 	User  *User
 	Group *Group
@@ -48,6 +51,14 @@ func (r *RedeemCode) CanUse() bool {
 }
 
 func GenerateRedeemCode() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+func GenerateRedeemBatchID() (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
 		return "", err

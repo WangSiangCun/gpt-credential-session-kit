@@ -3048,7 +3048,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 				BillingModelSource: tc.billingModelSource,
 			}},
 			groupPlatforms: map[int64]string{groupID: service.PlatformOpenAI},
-		}, nil, nil, nil, nil)
+		}, nil, nil, nil, nil, nil)
 	}
 
 	var keyRepo service.APIKeyRepository

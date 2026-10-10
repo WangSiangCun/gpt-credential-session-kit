@@ -75,10 +75,10 @@ type UpdateSettingsRequest struct {
 
 	// 阿里云验证码 2.0 设置
 	AliyunCaptchaEnabled         bool   `json:"aliyun_captcha_enabled"`
-	AliyunCaptchaAccessKeyID     string `json:"aliyun_captcha_access_key_id"`
-	AliyunCaptchaAccessKeySecret string `json:"aliyun_captcha_access_key_secret"`
 	AliyunCaptchaSceneID         string `json:"aliyun_captcha_scene_id"`
 	AliyunCaptchaPrefix          string `json:"aliyun_captcha_prefix"`
+	AliyunCaptchaAccessKeyID     string `json:"aliyun_captcha_access_key_id"`
+	AliyunCaptchaAccessKeySecret string `json:"aliyun_captcha_access_key_secret"`
 	AliyunCaptchaRegion          string `json:"aliyun_captcha_region"`
 
 	// API Key IP 访问控制设置
@@ -163,21 +163,26 @@ type UpdateSettingsRequest struct {
 	GoogleOAuthFrontendRedirectURL string `json:"google_oauth_frontend_redirect_url"`
 
 	// OEM设置
-	SiteName                    string                `json:"site_name"`
-	SiteLogo                    string                `json:"site_logo"`
-	SiteSubtitle                string                `json:"site_subtitle"`
-	APIBaseURL                  string                `json:"api_base_url"`
-	ContactInfo                 string                `json:"contact_info"`
-	DocURL                      string                `json:"doc_url"`
-	HomeContent                 string                `json:"home_content"`
-	CompactHomeEnabled          bool                  `json:"compact_home_enabled"`
-	HideCcsImportButton         bool                  `json:"hide_ccs_import_button"`
-	PurchaseSubscriptionEnabled *bool                 `json:"purchase_subscription_enabled"`
-	PurchaseSubscriptionURL     *string               `json:"purchase_subscription_url"`
-	TableDefaultPageSize        int                   `json:"table_default_page_size"`
-	TablePageSizeOptions        []int                 `json:"table_page_size_options"`
-	CustomMenuItems             *[]dto.CustomMenuItem `json:"custom_menu_items"`
-	CustomEndpoints             *[]dto.CustomEndpoint `json:"custom_endpoints"`
+	SiteName                    string                  `json:"site_name"`
+	SiteLogo                    string                  `json:"site_logo"`
+	SiteSubtitle                string                  `json:"site_subtitle"`
+	APIBaseURL                  string                  `json:"api_base_url"`
+	ContactInfo                 string                  `json:"contact_info"`
+	DocURL                      string                  `json:"doc_url"`
+	HomeContent                 string                  `json:"home_content"`
+	CompactHomeEnabled          bool                    `json:"compact_home_enabled"`
+	QQGroupEnabled              bool                    `json:"qq_group_enabled"`
+	QQGroupQRCode               string                  `json:"qq_group_qr_code"`
+	QQGroupDescription          string                  `json:"qq_group_description"`
+	HideCcsImportButton         bool                    `json:"hide_ccs_import_button"`
+	PurchaseSubscriptionEnabled *bool                   `json:"purchase_subscription_enabled"`
+	PurchaseSubscriptionURL     *string                 `json:"purchase_subscription_url"`
+	CloudCatStoreURL            *string                 `json:"cloudcat_store_url"`
+	CloudCatPlans               *[]service.CloudCatPlan `json:"cloudcat_plans"`
+	TableDefaultPageSize        int                     `json:"table_default_page_size"`
+	TablePageSizeOptions        []int                   `json:"table_page_size_options"`
+	CustomMenuItems             *[]dto.CustomMenuItem   `json:"custom_menu_items"`
+	CustomEndpoints             *[]dto.CustomEndpoint   `json:"custom_endpoints"`
 
 	// 默认配置
 	DefaultConcurrency                        int                               `json:"default_concurrency"`
@@ -374,9 +379,15 @@ type UpdateSettingsRequest struct {
 	SubscriptionEnabled *bool `json:"subscription_enabled"`
 
 	// Model Plaza feature switches + description
-	ModelPlazaEnabled     *bool   `json:"model_plaza_enabled"`
-	ModelPlazaRequireAuth *bool   `json:"model_plaza_require_auth"`
-	ModelPlazaDescription *string `json:"model_plaza_description"`
+	ModelPlazaEnabled                       *bool   `json:"model_plaza_enabled"`
+	ModelPlazaRequireAuth                   *bool   `json:"model_plaza_require_auth"`
+	ModelPlazaDescription                   *string `json:"model_plaza_description"`
+	AvailableChannelsQuotaVisible           *bool   `json:"available_channels_quota_visible"`
+	AvailableChannelsAccountsVisible        *bool   `json:"available_channels_accounts_visible"`
+	AvailableChannelsCacheHitRateVisible    *bool   `json:"available_channels_cache_hit_rate_visible"`
+	AvailableChannelsTimelineEnabled        *bool   `json:"available_channels_timeline_enabled"`
+	AvailableChannelsTimelineRequestCount   *int    `json:"available_channels_timeline_request_count"`
+	AvailableChannelsTimelineRefreshSeconds *int    `json:"available_channels_timeline_refresh_seconds"`
 
 	// Plugin management menu visibility switch; plugin runtime is unaffected.
 	PluginManagementEnabled *bool `json:"plugin_management_enabled"`
@@ -1352,6 +1363,26 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	if req.PurchaseSubscriptionURL != nil {
 		purchaseURL = strings.TrimSpace(*req.PurchaseSubscriptionURL)
 	}
+	cloudCatStoreURL := previousSettings.CloudCatStoreURL
+	if req.CloudCatStoreURL != nil {
+		cloudCatStoreURL = strings.TrimSpace(*req.CloudCatStoreURL)
+	}
+	if cloudCatStoreURL != "" {
+		if err := config.ValidateAbsoluteHTTPURL(cloudCatStoreURL); err != nil {
+			response.BadRequest(c, "CloudCat store URL must be an absolute http(s) URL")
+			return
+		}
+	}
+	cloudCatPlans := previousSettings.CloudCatPlans
+	if req.CloudCatPlans != nil {
+		cloudCatPlans = *req.CloudCatPlans
+	}
+	for _, plan := range cloudCatPlans {
+		if plan.Amount <= 0 || plan.PayAmount <= 0 || strings.TrimSpace(plan.Image) == "" {
+			response.BadRequest(c, "CloudCat plans require positive amount/pay amount and an image path")
+			return
+		}
+	}
 
 	// - 启用时要求 URL 合法且非空
 	// - 禁用时允许为空；若提供了 URL 也做基本校验，避免误配置
@@ -1766,9 +1797,14 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		DocURL:                                 req.DocURL,
 		HomeContent:                            req.HomeContent,
 		CompactHomeEnabled:                     req.CompactHomeEnabled,
+		QQGroupEnabled:                         req.QQGroupEnabled,
+		QQGroupQRCode:                          req.QQGroupQRCode,
+		QQGroupDescription:                     strings.TrimSpace(req.QQGroupDescription),
 		HideCcsImportButton:                    req.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:            purchaseEnabled,
 		PurchaseSubscriptionURL:                purchaseURL,
+		CloudCatStoreURL:                       cloudCatStoreURL,
+		CloudCatPlans:                          cloudCatPlans,
 		TableDefaultPageSize:                   req.TableDefaultPageSize,
 		TablePageSizeOptions:                   req.TablePageSizeOptions,
 		CustomMenuItems:                        customMenuJSON,
@@ -2316,6 +2352,42 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.ModelPlazaDescription
 		}(),
+		AvailableChannelsQuotaVisible: func() bool {
+			if req.AvailableChannelsQuotaVisible != nil {
+				return *req.AvailableChannelsQuotaVisible
+			}
+			return previousSettings.AvailableChannelsQuotaVisible
+		}(),
+		AvailableChannelsAccountsVisible: func() bool {
+			if req.AvailableChannelsAccountsVisible != nil {
+				return *req.AvailableChannelsAccountsVisible
+			}
+			return previousSettings.AvailableChannelsAccountsVisible
+		}(),
+		AvailableChannelsCacheHitRateVisible: func() bool {
+			if req.AvailableChannelsCacheHitRateVisible != nil {
+				return *req.AvailableChannelsCacheHitRateVisible
+			}
+			return previousSettings.AvailableChannelsCacheHitRateVisible
+		}(),
+		AvailableChannelsTimelineEnabled: func() bool {
+			if req.AvailableChannelsTimelineEnabled != nil {
+				return *req.AvailableChannelsTimelineEnabled
+			}
+			return previousSettings.AvailableChannelsTimelineEnabled
+		}(),
+		AvailableChannelsTimelineRequestCount: func() int {
+			if req.AvailableChannelsTimelineRequestCount != nil {
+				return *req.AvailableChannelsTimelineRequestCount
+			}
+			return previousSettings.AvailableChannelsTimelineRequestCount
+		}(),
+		AvailableChannelsTimelineRefreshSeconds: func() int {
+			if req.AvailableChannelsTimelineRefreshSeconds != nil {
+				return *req.AvailableChannelsTimelineRefreshSeconds
+			}
+			return previousSettings.AvailableChannelsTimelineRefreshSeconds
+		}(),
 		PluginManagementEnabled: func() bool {
 			if req.PluginManagementEnabled != nil {
 				return *req.PluginManagementEnabled
@@ -2647,9 +2719,14 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		DocURL:                                                 updatedSettings.DocURL,
 		HomeContent:                                            updatedSettings.HomeContent,
 		CompactHomeEnabled:                                     updatedSettings.CompactHomeEnabled,
+		QQGroupEnabled:                                         updatedSettings.QQGroupEnabled,
+		QQGroupQRCode:                                          updatedSettings.QQGroupQRCode,
+		QQGroupDescription:                                     updatedSettings.QQGroupDescription,
 		HideCcsImportButton:                                    updatedSettings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:                            updatedSettings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:                                updatedSettings.PurchaseSubscriptionURL,
+		CloudCatStoreURL:                                       updatedSettings.CloudCatStoreURL,
+		CloudCatPlans:                                          updatedSettings.CloudCatPlans,
 		TableDefaultPageSize:                                   updatedSettings.TableDefaultPageSize,
 		TablePageSizeOptions:                                   updatedSettings.TablePageSizeOptions,
 		CustomMenuItems:                                        dto.ParseCustomMenuItems(updatedSettings.CustomMenuItems),
@@ -2779,19 +2856,26 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ExcelBPSEnabled:                      updatedSettings.ExcelBPSEnabled,
 		ChannelMonitorMode:                   updatedSettings.ChannelMonitorMode,
 		ChannelMonitorDefaultIntervalSeconds: updatedSettings.ChannelMonitorDefaultIntervalSeconds,
-		ChannelMonitorHideThroughput:         updatedSettings.ChannelMonitorHideThroughput,
-		ChannelMonitorShowQuota:              updatedSettings.ChannelMonitorShowQuota,
-		ChannelMonitorHideUserRanking:        updatedSettings.ChannelMonitorHideUserRanking,
+
+		AvailableChannelsEnabled:                updatedSettings.AvailableChannelsEnabled,
+		AvailableChannelsQuotaVisible:           updatedSettings.AvailableChannelsQuotaVisible,
+		AvailableChannelsAccountsVisible:        updatedSettings.AvailableChannelsAccountsVisible,
+		AvailableChannelsCacheHitRateVisible:    updatedSettings.AvailableChannelsCacheHitRateVisible,
+		AvailableChannelsTimelineEnabled:        updatedSettings.AvailableChannelsTimelineEnabled,
+		AvailableChannelsTimelineRequestCount:   updatedSettings.AvailableChannelsTimelineRequestCount,
+		AvailableChannelsTimelineRefreshSeconds: updatedSettings.AvailableChannelsTimelineRefreshSeconds,
+		ChannelMonitorHideThroughput:            updatedSettings.ChannelMonitorHideThroughput,
+		ChannelMonitorShowQuota:                 updatedSettings.ChannelMonitorShowQuota,
+		ChannelMonitorHideUserRanking:           updatedSettings.ChannelMonitorHideUserRanking,
 
 		GrokDefaultTextModel:           updatedSettings.GrokDefaultTextModel,
 		GrokCrossClientModelMapEnabled: updatedSettings.GrokCrossClientModelMapEnabled,
 		GrokDefaultBaseURLMode:         updatedSettings.GrokDefaultBaseURLMode,
 		GrokVideoSourceURLEnabled:      updatedSettings.GrokVideoSourceURLEnabled,
 
-		AvailableChannelsEnabled: updatedSettings.AvailableChannelsEnabled,
-		PelicanShowcaseEnabled:   updatedSettings.PelicanShowcaseEnabled,
-		PelicanShowcase:          updatedSettings.PelicanShowcase,
-		SubscriptionEnabled:      updatedSettings.SubscriptionEnabled,
+		PelicanShowcaseEnabled: updatedSettings.PelicanShowcaseEnabled,
+		PelicanShowcase:        updatedSettings.PelicanShowcase,
+		SubscriptionEnabled:    updatedSettings.SubscriptionEnabled,
 
 		ModelPlazaEnabled:       updatedSettings.ModelPlazaEnabled,
 		ModelPlazaRequireAuth:   updatedSettings.ModelPlazaRequireAuth,

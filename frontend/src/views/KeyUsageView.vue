@@ -21,14 +21,6 @@
           >
             <Icon name="book" size="md" />
           </a>
-          <button
-            @click="toggleTheme"
-            class="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white"
-            :title="isDark ? t('home.switchToLight') : t('home.switchToDark')"
-          >
-            <Icon v-if="isDark" name="sun" size="md" />
-            <Icon v-else name="moon" size="md" />
-          </button>
         </div>
       </nav>
     </header>
@@ -438,15 +430,8 @@ const siteLogo = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.site_
 const docUrl = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.doc_url || appStore.docUrl || ''))
 const githubUrl = 'https://github.com/Wei-Shaw/sub2api'
 
-// ==================== Theme (same as HomeView) ====================
-
-const isDark = ref(document.documentElement.classList.contains('dark'))
-
-function toggleTheme() {
-  isDark.value = !isDark.value
-  document.documentElement.classList.toggle('dark', isDark.value)
-  localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
-}
+// This standalone page follows the application's permanently locked dark theme.
+const isDark = ref(true)
 
 const currentYear = computed(() => new Date().getFullYear())
 
@@ -932,14 +917,6 @@ async function queryKey() {
 
 // ==================== Lifecycle ====================
 
-function initTheme() {
-  const savedTheme = localStorage.getItem('theme')
-  if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-    isDark.value = true
-    document.documentElement.classList.add('dark')
-  }
-}
-
 function formatResetTime(resetAt: string | null | undefined): string {
   if (!resetAt) return ''
   const diff = new Date(resetAt).getTime() - now.value.getTime()
@@ -953,7 +930,6 @@ function formatResetTime(resetAt: string | null | undefined): string {
 }
 
 onMounted(() => {
-  initTheme()
   if (!appStore.publicSettingsLoaded) {
     appStore.fetchPublicSettings()
   }

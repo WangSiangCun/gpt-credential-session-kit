@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -71,6 +72,24 @@ type adminRechargeAffiliateAccruerStub struct {
 type adminRechargeAffiliateAccrual struct {
 	userID int64
 	amount float64
+}
+
+type adminRechargeNotificationSenderStub struct {
+	calls  chan NotificationEmailSendInput
+	err    error
+	locale string
+}
+
+func (s *adminRechargeNotificationSenderStub) Send(_ context.Context, input NotificationEmailSendInput) error {
+	s.calls <- input
+	return s.err
+}
+
+func (s *adminRechargeNotificationSenderStub) ResolveRecipientLocaleWithFallback(_ context.Context, _ int64, _ string, fallback string) string {
+	if s.locale != "" {
+		return s.locale
+	}
+	return fallback
 }
 
 func (s *adminRechargeAffiliateAccruerStub) AccrueInviteRebate(_ context.Context, userID int64, amount float64) (float64, error) {
@@ -260,4 +279,104 @@ func TestAdminService_UpdateUserBalance_AffiliateFailureDoesNotRollbackRecharge(
 	require.Equal(t, 15.0, user.Balance)
 	require.Equal(t, []adminRechargeAffiliateAccrual{{userID: 7, amount: 5}}, affiliate.calls)
 	require.Len(t, redeemRepo.created, 1)
+}
+
+func TestAdminService_UpdateUserBalance_SendsAdminRechargeEmail(t *testing.T) {
+	baseRepo := &userRepoStub{user: &User{
+		ID:       7,
+		Email:    "user@example.com",
+		Username: "tester",
+		Balance:  10,
+	}}
+	repo := &balanceUserRepoStub{userRepoStub: baseRepo}
+	redeemRepo := &balanceRedeemRepoStub{redeemRepoStub: &redeemRepoStub{}}
+	notifications := &adminRechargeNotificationSenderStub{
+		calls: make(chan NotificationEmailSendInput, 1),
+	}
+	svc := &adminServiceImpl{
+		userRepo:           repo,
+		redeemCodeRepo:     redeemRepo,
+		notificationEmails: notifications,
+	}
+
+	user, err := svc.UpdateUserBalance(context.Background(), 7, 5, "add", "manual credit")
+	require.NoError(t, err)
+	require.Equal(t, 15.0, user.Balance)
+
+	select {
+	case input := <-notifications.calls:
+		require.Equal(t, NotificationEmailEventBalanceAdminRecharge, input.Event)
+		require.Equal(t, notificationEmailLocaleChinese, input.Locale)
+		require.Equal(t, "user@example.com", input.RecipientEmail)
+		require.Equal(t, "tester", input.RecipientName)
+		require.Equal(t, int64(7), input.UserID)
+		require.Equal(t, "admin_balance_adjustment", input.SourceType)
+		require.NotEmpty(t, input.SourceID)
+		require.Equal(t, "5.00", input.Variables["recharge_amount"])
+		require.Equal(t, "15.00", input.Variables["current_balance"])
+		require.Equal(t, input.SourceID, input.Variables["adjustment_id"])
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for admin recharge notification")
+	}
+}
+
+func TestAdminService_UpdateUserBalance_DoesNotEmailWithoutPositiveIncrease(t *testing.T) {
+	tests := []struct {
+		name      string
+		operation string
+		amount    float64
+	}{
+		{name: "subtract", operation: "subtract", amount: 2},
+		{name: "unchanged", operation: "set", amount: 10},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			baseRepo := &userRepoStub{user: &User{ID: 7, Email: "user@example.com", Balance: 10}}
+			repo := &balanceUserRepoStub{userRepoStub: baseRepo}
+			redeemRepo := &balanceRedeemRepoStub{redeemRepoStub: &redeemRepoStub{}}
+			notifications := &adminRechargeNotificationSenderStub{
+				calls: make(chan NotificationEmailSendInput, 1),
+			}
+			svc := &adminServiceImpl{
+				userRepo:           repo,
+				redeemCodeRepo:     redeemRepo,
+				notificationEmails: notifications,
+			}
+
+			_, err := svc.UpdateUserBalance(context.Background(), 7, tt.amount, tt.operation, "")
+			require.NoError(t, err)
+
+			select {
+			case input := <-notifications.calls:
+				t.Fatalf("unexpected notification: %+v", input)
+			case <-time.After(50 * time.Millisecond):
+			}
+		})
+	}
+}
+
+func TestAdminService_UpdateUserBalance_UsesRememberedEmailLocale(t *testing.T) {
+	baseRepo := &userRepoStub{user: &User{ID: 7, Email: "user@example.com", Balance: 10}}
+	repo := &balanceUserRepoStub{userRepoStub: baseRepo}
+	redeemRepo := &balanceRedeemRepoStub{redeemRepoStub: &redeemRepoStub{}}
+	notifications := &adminRechargeNotificationSenderStub{
+		calls:  make(chan NotificationEmailSendInput, 1),
+		locale: notificationEmailDefaultLocale,
+	}
+	svc := &adminServiceImpl{
+		userRepo:           repo,
+		redeemCodeRepo:     redeemRepo,
+		notificationEmails: notifications,
+	}
+
+	_, err := svc.UpdateUserBalance(context.Background(), 7, 5, "add", "")
+	require.NoError(t, err)
+
+	select {
+	case input := <-notifications.calls:
+		require.Equal(t, notificationEmailDefaultLocale, input.Locale)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for admin recharge notification")
+	}
 }

@@ -217,6 +217,25 @@ type UsageLog struct {
 	Subscription *UserSubscription
 }
 
+// ChannelRequestTimeline is a compact, privacy-safe summary of recent requests
+// for one channel. It intentionally contains no user, API key or account data.
+type ChannelRequestTimeline struct {
+	ChannelID           int64
+	TotalRequests       int
+	AverageFirstTokenMs *float64
+	AverageActualCost   float64
+	AverageCacheHitRate *float64
+	Segments            []ChannelRequestTimelineSegment
+}
+
+type ChannelRequestTimelineSegment struct {
+	Index               int
+	RequestCount        int
+	SuccessCount        int
+	FailedCount         int
+	AverageFirstTokenMs *float64
+}
+
 func (u *UsageLog) TotalTokens() int {
 	return u.InputTokens + u.OutputTokens + u.CacheCreationTokens + u.CacheReadTokens
 }

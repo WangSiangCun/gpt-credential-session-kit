@@ -378,7 +378,12 @@ export default {
       codeEnabledSuccess: 'Redeem code enabled',
       codeDeletedSuccess: 'Redeem code deleted successfully',
       failedToUpdate: 'Failed to update redeem code'
-    },
+    ,
+"batchUserOnce": "Limit one redemption per user",
+"batchUserOnceHint": "When enabled, each user can redeem only one code from this generated batch. When disabled, they may redeem multiple different codes from the batch.",
+"globalUserOnce": "Limit one redemption per account globally",
+"globalUserOnceHint": "When enabled, each account can redeem only one globally limited code across every batch that uses this option. Regular codes are unaffected."
+},
 
     // Announcements
     announcements: {

@@ -62,6 +62,8 @@ export async function getById(id: number): Promise<RedeemCode> {
  * @param groupId - Group ID (required for subscription type)
  * @param validityDays - Validity days (for subscription type)
  * @param expiresInDays - Days before the code itself expires
+ * @param batchUserOnce - Whether each user may redeem only one code from this batch
+ * @param globalUserOnce - Whether each user may redeem only one globally limited code across all batches
  * @returns Array of generated redeem codes
  */
 export async function generate(
@@ -70,12 +72,16 @@ export async function generate(
   value: number,
   groupId?: number | null,
   validityDays?: number,
-  expiresInDays?: number | null
+  expiresInDays?: number | null,
+  batchUserOnce: boolean = false,
+  globalUserOnce: boolean = false
 ): Promise<RedeemCode[]> {
   const payload: GenerateRedeemCodesRequest = {
     count,
     type,
-    value
+    value,
+    batch_user_once: batchUserOnce,
+    global_user_once: globalUserOnce
   }
 
   // 订阅类型专用字段

@@ -133,6 +133,19 @@ const openAIEndpointCapabilitiesCredentialKey = "openai_capabilities"
 // absent/null value uses provider observations.
 const GrokMediaEligibleExtraKey = "grok_media_eligible"
 
+// PublicOfficialDirectExtraKey is the administrator-controlled account flag
+// for the user-facing "official direct" badge. Missing and non-boolean values
+// are intentionally treated as disabled.
+const PublicOfficialDirectExtraKey = "public_official_direct"
+
+func (a *Account) IsPublicOfficialDirect() bool {
+	if a == nil || a.Extra == nil {
+		return false
+	}
+	enabled, ok := a.Extra[PublicOfficialDirectExtraKey].(bool)
+	return ok && enabled
+}
+
 const (
 	OpenAIAuthModePersonalAccessToken = "personalAccessToken"
 	openAIAuthModeCredentialKey       = "auth_mode"

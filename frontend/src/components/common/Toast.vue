@@ -17,7 +17,8 @@
           v-for="toast in toasts"
           :key="toast.id"
           :class="[
-            'pointer-events-auto min-w-[320px] max-w-md overflow-hidden rounded-lg shadow-lg',
+            'pool-toast pointer-events-auto min-w-[320px] max-w-md overflow-hidden rounded-lg shadow-lg',
+            `pool-toast--${toast.type}`,
             'bg-white dark:bg-dark-800',
             'border-l-4',
             getBorderColor(toast.type)
@@ -37,15 +38,15 @@
 
               <!-- Content -->
               <div class="min-w-0 flex-1">
-                <p v-if="toast.title" class="text-sm font-semibold text-gray-900 dark:text-white">
+                <p v-if="toast.title" class="pool-toast__title text-sm font-semibold">
                   {{ toast.title }}
                 </p>
                 <p
                   :class="[
-                    'text-sm leading-relaxed',
+                    'pool-toast__message text-sm leading-relaxed',
                     toast.title
-                      ? 'mt-1 text-gray-600 dark:text-gray-300'
-                      : 'text-gray-900 dark:text-white'
+                      ? 'mt-1'
+                      : ''
                   ]"
                 >
                   {{ toast.message }}
@@ -55,7 +56,7 @@
               <!-- Close button -->
               <button
                 @click="removeToast(toast.id)"
-                class="-m-1 flex-shrink-0 rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-dark-700 dark:hover:text-gray-300"
+                class="pool-toast__close -m-1 flex-shrink-0 rounded p-1 transition-colors"
                 aria-label="Close notification"
               >
                 <Icon name="x" size="sm" />
@@ -64,9 +65,9 @@
           </div>
 
           <!-- Progress bar -->
-          <div v-if="toast.duration" class="h-1 bg-gray-100 dark:bg-dark-700">
+          <div v-if="toast.duration" class="pool-toast__progress-track h-1">
             <div
-              :class="['h-full toast-progress', getProgressBarColor(toast.type)]"
+              :class="['pool-toast__progress h-full toast-progress', getProgressBarColor(toast.type)]"
               :style="{ animationDuration: `${toast.duration}ms` }"
             ></div>
           </div>
@@ -135,6 +136,44 @@ const removeToast = (id: string) => {
 </script>
 
 <style scoped>
+.pool-toast {
+  font-family: Manrope, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.pool-toast__title {
+  color: #ffffff !important;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.pool-toast__message {
+  color: #f8fafc !important;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.pool-toast__close {
+  color: #cbd5e1 !important;
+}
+
+.pool-toast__close:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+}
+
+.pool-toast__progress-track {
+  background: rgba(255, 255, 255, 0.14) !important;
+}
+
+.pool-toast--error {
+  border-left-color: #fb7185 !important;
+  background: rgba(63, 26, 33, 0.94) !important;
+}
+
+.pool-toast--error .pool-toast__message {
+  color: #fff1f2 !important;
+}
+
 .toast-progress {
   width: 100%;
   animation-name: toast-progress-shrink;

@@ -4,6 +4,7 @@ export default {
       description: '管理注册、邮箱验证、默认值和 SMTP 设置',
       tabs: {
         general: '通用设置',
+        endpoints: '端点管理',
         agreement: '登录条款',
         features: '功能开关',
         security: '安全与认证',
@@ -12,6 +13,10 @@ export default {
         email: '邮件设置',
         backup: '数据备份',
         payment: '支付设置',
+      },
+      endpoints: {
+        title: 'API 端点管理',
+        description: '统一管理默认地址与用户可选的备用端点，名称和介绍会展示在 API 密钥页面。',
       },
       features: {
         excelBpsImages: {
@@ -83,8 +88,20 @@ export default {
           title: '可用渠道',
           description: '向已登录用户展示他们能访问的渠道、模型和定价聚合视图。默认关闭。',
           configureLink: '前往 渠道管理 > 渠道定价 配置模型价格',
-          enabled: '启用可用渠道',
-          enabledHint: '关闭后用户端侧边栏入口隐藏，接口返回空数组。',
+            enabled: '启用可用渠道',
+            enabledHint: '关闭后用户端侧边栏入口隐藏，接口返回空数组。',
+            quotaVisible: '向用户展示渠道剩余额度',
+            quotaVisibleHint: '开启后在可用渠道页面展示各渠道账号的平均剩余额度百分比；默认关闭。',
+            accountsVisible: '向用户展示渠道账号',
+            accountsVisibleHint: '需先开启渠道剩余额度；开启后展示账号名称、剩余额度和状态，仅可查看，不会公开凭据、备注或错误详情。',
+            cacheHitRateVisible: '展示平均缓存命中率',
+            cacheHitRateVisibleHint: '按近期请求的 Token 加权展示渠道缓存命中率；默认关闭。',
+            timelineEnabled: '展示近期请求像素记录',
+            timelineEnabledHint: '在可用渠道下展示每次请求的成功/失败像素格，并按下方设置定时刷新。默认开启。',
+            timelineRequestCount: '请求状态条数量',
+            timelineRequestCountHint: '近期请求像素和平均缓存命中率使用的样本数。范围 10 - 2000，默认 1000。',
+            timelineRefreshSeconds: '状态条刷新间隔（秒）',
+            timelineRefreshSecondsHint: '可用渠道页面重新获取请求状态与缓存命中率的间隔。范围 1 - 60 秒，默认 2 秒。',
         },
         pelicanShowcase: {
           title: '鹈鹕测智展示',
@@ -275,7 +292,9 @@ export default {
         exemptAdmin: '管理员豁免',
         exemptAdminHint: '开启后管理员账号不受面板限流约束，避免批量运维操作被误拦。',
         saved: '面板接口限流配置已保存',
-        saveFailed: '保存面板接口限流配置失败'
+        saveFailed: '保存面板接口限流配置失败',
+        loadFailed: '读取面板接口限流配置失败，请重试后再保存。',
+        invalidRpm: '请求上限须为 0 至 100000 的整数，0 表示不限制。'
       },
       turnstile: {
         title: 'Cloudflare Turnstile',
@@ -760,6 +779,13 @@ export default {
         docUrlHint: '文档网站的链接。留空则隐藏文档链接。',
         docUrlPlaceholder: 'https://docs.example.com',
         siteLogo: '站点Logo',
+        qqGroupTitle: 'QQ群入口',
+        qqGroupHint: '在登录后的全局顶栏展示企鹅按钮，用户点击后可查看入群二维码',
+        qqGroupQrCode: 'QQ群二维码',
+        qqGroupQrCodeHint: '建议上传清晰的群二维码卡片，最大 600 KB',
+        qqGroupDescription: '二维码下方文案',
+        qqGroupDescriptionPlaceholder: '例如：扫码加入用户交流群，获取使用帮助与最新动态',
+        qqGroupDescriptionHint: '最多 300 个字符，支持换行',
         uploadImage: '上传图片',
         remove: '移除',
         logoHint: 'PNG、JPG 或 SVG 格式，最大 300KB。建议：80x80px 正方形图片。',
@@ -1162,6 +1188,18 @@ export default {
         cooldownSecondsHint: '默认回避持续时间（1-7200 秒）；上游返回明确 reset 时仍优先使用上游时间',
         saved: '429 默认回避设置保存成功',
         saveFailed: '保存 429 默认回避设置失败'
+      },
+      openAI403Protection: {
+        title: 'OpenAI 403 保护',
+        description: '避免单次异常请求导致整个 OpenAI 账号临时不可调度',
+        enabled: '启用 403 保护',
+        enabledHint: '关闭后，403 只切换当前请求，不改变账号全局调度状态',
+        thresholdCount: '触发次数',
+        thresholdWindowMinutes: '统计窗口（分钟）',
+        cooldownMinutes: '暂停时长（分钟）',
+        behaviorHint: '未达到触发次数时只切换当前请求；达到后账号临时不可调度，到期自动恢复。成功请求会清零计数。',
+        saved: 'OpenAI 403 保护设置保存成功',
+        saveFailed: '保存 OpenAI 403 保护设置失败'
       },
       streamTimeout: {
         title: '流超时处理',

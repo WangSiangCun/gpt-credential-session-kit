@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -327,6 +329,68 @@ func TestSettingService_GetPublicSettings_PaymentBalanceDisabledStrictTrue(t *te
 			payload, ok := raw.(*PublicSettingsInjectionPayload)
 			require.True(t, ok)
 			require.Equal(t, tc.want, payload.PaymentBalanceDisabled)
+		})
+	}
+}
+
+func TestAvailableChannels_QuotaDisclosureControlsAccountVisibility(t *testing.T) {
+	repo := &settingPublicRepoStub{
+		values: map[string]string{
+			SettingKeyAvailableChannelsQuotaVisible:    "false",
+			SettingKeyAvailableChannelsAccountsVisible: "true",
+		},
+	}
+	svc := NewSettingService(repo, &config.Config{})
+
+	publicSettings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.False(t, publicSettings.AvailableChannelsQuotaVisible)
+	require.False(t, publicSettings.AvailableChannelsAccountsVisible)
+
+	runtime := svc.GetAvailableChannelsRuntime(context.Background())
+	require.False(t, runtime.QuotaVisible)
+	require.False(t, runtime.AccountsVisible)
+}
+
+func TestAvailableChannels_TimelineDefaultsEnabledAndCanBeDisabled(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		values map[string]string
+		want   bool
+	}{
+		{name: "missing setting preserves existing behavior", values: map[string]string{}, want: true},
+		{name: "explicit false disables timeline", values: map[string]string{SettingKeyAvailableChannelsTimelineEnabled: "false"}, want: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := NewSettingService(&settingPublicRepoStub{values: tt.values}, &config.Config{})
+			publicSettings, err := svc.GetPublicSettings(context.Background())
+			require.NoError(t, err)
+			require.Equal(t, tt.want, publicSettings.AvailableChannelsTimelineEnabled)
+			require.Equal(t, tt.want, svc.GetAvailableChannelsRuntime(context.Background()).TimelineEnabled)
+		})
+	}
+}
+
+func TestSettingService_ParseSettingsPublishesGrokRuntimeMapping(t *testing.T) {
+	previous := xai.RuntimeModelMappingOptions()
+	t.Cleanup(func() { xai.SetRuntimeModelMappingOptions(previous) })
+	svc := NewSettingService(&settingPublicRepoStub{values: map[string]string{}}, &config.Config{})
+	for _, tc := range []struct {
+		name, model, enabled string
+		wantEnabled          bool
+	}{
+		{name: "default", model: "", enabled: "", wantEnabled: true},
+		{name: "custom model", model: "grok-custom", enabled: "true", wantEnabled: true},
+		{name: "explicit disable", model: "grok-custom", enabled: "false", wantEnabled: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			settings := svc.parseSettings(map[string]string{
+				SettingKeyGrokDefaultTextModel:           tc.model,
+				SettingKeyGrokCrossClientModelMapEnabled: tc.enabled,
+			})
+			opts := xai.RuntimeModelMappingOptions()
+			assert.Equal(t, settings.GrokDefaultTextModel, opts.DefaultText)
+			assert.Equal(t, tc.wantEnabled, opts.EnableCrossClientMap)
 		})
 	}
 }

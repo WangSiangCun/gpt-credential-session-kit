@@ -188,9 +188,14 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyDocURL,
 		SettingKeyHomeContent,
 		SettingKeyCompactHomeEnabled,
+		SettingKeyQQGroupEnabled,
+		SettingKeyQQGroupQRCode,
+		SettingKeyQQGroupDescription,
 		SettingKeyHideCcsImportButton,
 		SettingKeyPurchaseSubscriptionEnabled,
 		SettingKeyPurchaseSubscriptionURL,
+		SettingKeyCloudCatStoreURL,
+		SettingKeyCloudCatPlans,
 		SettingKeyTableDefaultPageSize,
 		SettingKeyTablePageSizeOptions,
 		SettingKeyCustomMenuItems,
@@ -239,6 +244,12 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyAvailableChannelsEnabled,
 		SettingKeyPelicanShowcaseEnabled,
 		SettingKeySubscriptionEnabled,
+		SettingKeyAvailableChannelsQuotaVisible,
+		SettingKeyAvailableChannelsAccountsVisible,
+		SettingKeyAvailableChannelsCacheHitRateVisible,
+		SettingKeyAvailableChannelsTimelineEnabled,
+		SettingKeyAvailableChannelsTimelineRequestCount,
+		SettingKeyAvailableChannelsTimelineRefreshSeconds,
 		SettingKeyModelPlazaEnabled,
 		SettingKeyModelPlazaRequireAuth,
 		SettingKeyPluginManagementEnabled,
@@ -337,9 +348,14 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		DocURL:                              settings[SettingKeyDocURL],
 		HomeContent:                         settings[SettingKeyHomeContent],
 		CompactHomeEnabled:                  settings[SettingKeyCompactHomeEnabled] == "true",
+		QQGroupEnabled:                      settings[SettingKeyQQGroupEnabled] != "false",
+		QQGroupQRCode:                       s.getStringOrDefault(settings, SettingKeyQQGroupQRCode, "/qq-group-default.jpg"),
+		QQGroupDescription:                  s.getStringOrDefault(settings, SettingKeyQQGroupDescription, "扫码加入用户交流群，获取使用帮助与最新动态"),
 		HideCcsImportButton:                 settings[SettingKeyHideCcsImportButton] == "true",
 		PurchaseSubscriptionEnabled:         settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
 		PurchaseSubscriptionURL:             strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
+		CloudCatStoreURL:                    strings.TrimSpace(settings[SettingKeyCloudCatStoreURL]),
+		CloudCatPlans:                       parseCloudCatPlans(settings[SettingKeyCloudCatPlans]),
 		TableDefaultPageSize:                tableDefaultPageSize,
 		TablePageSizeOptions:                tablePageSizeOptions,
 		CustomMenuItems:                     settings[SettingKeyCustomMenuItems],
@@ -370,11 +386,17 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		ChannelMonitorHideThroughput:         !isFalseSettingValue(settings[SettingKeyChannelMonitorHideThroughput]),
 		ChannelMonitorShowQuota:              settings[SettingKeyChannelMonitorShowQuota] == "true",
 		ChannelMonitorHideUserRanking:        isTrueSettingValue(settings[SettingKeyChannelMonitorHideUserRanking]),
+		SubscriptionEnabled:                  !isFalseSettingValue(settings[SettingKeySubscriptionEnabled]),
 
 		AvailableChannelsEnabled: settings[SettingKeyAvailableChannelsEnabled] == "true",
 		PelicanShowcaseEnabled:   settings[SettingKeyPelicanShowcaseEnabled] == "true",
 
-		SubscriptionEnabled: !isFalseSettingValue(settings[SettingKeySubscriptionEnabled]),
+		AvailableChannelsQuotaVisible:           settings[SettingKeyAvailableChannelsQuotaVisible] == "true",
+		AvailableChannelsAccountsVisible:        normalizeAvailableChannelsAccountsVisible(settings[SettingKeyAvailableChannelsQuotaVisible] == "true", settings[SettingKeyAvailableChannelsAccountsVisible] != "false"),
+		AvailableChannelsCacheHitRateVisible:    settings[SettingKeyAvailableChannelsCacheHitRateVisible] == "true",
+		AvailableChannelsTimelineEnabled:        settings[SettingKeyAvailableChannelsTimelineEnabled] != "false",
+		AvailableChannelsTimelineRequestCount:   parseAvailableChannelsTimelineRequestCount(settings[SettingKeyAvailableChannelsTimelineRequestCount]),
+		AvailableChannelsTimelineRefreshSeconds: parseAvailableChannelsTimelineRefreshSeconds(settings[SettingKeyAvailableChannelsTimelineRefreshSeconds]),
 
 		ModelPlazaEnabled:       settings[SettingKeyModelPlazaEnabled] == "true",
 		ModelPlazaRequireAuth:   settings[SettingKeyModelPlazaRequireAuth] == "true",
@@ -450,8 +472,7 @@ type ChannelMonitorRuntime struct {
 	// snapshots; otherwise the user handler strips them server-side.
 	// Parsed fail-closed (only literal "true" enables). Admin always sees them.
 	ShowQuota bool
-	// HideUserRanking: when true, user-facing V2 views hide the user ranking tab
-	// and the /users payload. Parsed fail-open (only literal "true" hides it).
+	// HideUserRanking controls whether the user ranking tab is hidden.
 	HideUserRanking bool
 }
 
@@ -485,6 +506,7 @@ func (s *SettingService) GetChannelMonitorRuntime(ctx context.Context) ChannelMo
 			Mode:                   defaultChannelMonitorMode,
 			DefaultIntervalSeconds: channelMonitorIntervalFallback,
 			HideThroughput:         true,
+			HideUserRanking:        false,
 		}
 	}
 	vals, err := s.settingRepo.GetMultiple(ctx, []string{
@@ -501,6 +523,7 @@ func (s *SettingService) GetChannelMonitorRuntime(ctx context.Context) ChannelMo
 			Mode:                   defaultChannelMonitorMode,
 			DefaultIntervalSeconds: channelMonitorIntervalFallback,
 			HideThroughput:         true,
+			HideUserRanking:        false,
 		}
 	}
 	return ChannelMonitorRuntime{
@@ -535,19 +558,85 @@ func (s *SettingService) SetChannelMonitorMode(ctx context.Context, mode string)
 // AvailableChannelsRuntime is the lightweight view of the available-channels feature
 // switch consumed by the user-facing handler.
 type AvailableChannelsRuntime struct {
-	Enabled bool
+	Enabled                bool
+	QuotaVisible           bool
+	AccountsVisible        bool
+	CacheHitRateVisible    bool
+	TimelineEnabled        bool
+	TimelineRequestCount   int
+	TimelineRefreshSeconds int
+}
+
+func normalizeAvailableChannelsAccountsVisible(quotaVisible, accountsVisible bool) bool {
+	return quotaVisible && accountsVisible
+}
+
+const (
+	availableChannelsTimelineRequestCountFallback   = 1000
+	availableChannelsTimelineRefreshSecondsFallback = 2
+)
+
+func parseAvailableChannelsTimelineRequestCount(raw string) int {
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || value <= 0 {
+		return availableChannelsTimelineRequestCountFallback
+	}
+	return clampAvailableChannelsTimelineRequestCount(value)
+}
+
+func clampAvailableChannelsTimelineRequestCount(value int) int {
+	if value < 1 {
+		return 1
+	}
+	if value > 5000 {
+		return 5000
+	}
+	return value
+}
+
+func parseAvailableChannelsTimelineRefreshSeconds(raw string) int {
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || value <= 0 {
+		return availableChannelsTimelineRefreshSecondsFallback
+	}
+	return clampAvailableChannelsTimelineRefreshSeconds(value)
+}
+
+func clampAvailableChannelsTimelineRefreshSeconds(value int) int {
+	if value < 1 {
+		return 1
+	}
+	if value > 300 {
+		return 300
+	}
+	return value
 }
 
 // GetAvailableChannelsRuntime reads the available-channels feature switch directly
 // from the settings store. Fail-closed: on error returns Enabled=false, matching
 // the opt-in default (unknown ↔ disabled).
 func (s *SettingService) GetAvailableChannelsRuntime(ctx context.Context) AvailableChannelsRuntime {
-	vals, err := s.settingRepo.GetMultiple(ctx, []string{SettingKeyAvailableChannelsEnabled})
+	vals, err := s.settingRepo.GetMultiple(ctx, []string{
+		SettingKeyAvailableChannelsEnabled,
+		SettingKeyAvailableChannelsQuotaVisible,
+		SettingKeyAvailableChannelsAccountsVisible,
+		SettingKeyAvailableChannelsCacheHitRateVisible,
+		SettingKeyAvailableChannelsTimelineEnabled,
+		SettingKeyAvailableChannelsTimelineRequestCount,
+		SettingKeyAvailableChannelsTimelineRefreshSeconds,
+	})
 	if err != nil {
 		return AvailableChannelsRuntime{Enabled: false}
 	}
+	quotaVisible := vals[SettingKeyAvailableChannelsQuotaVisible] == "true"
 	return AvailableChannelsRuntime{
-		Enabled: vals[SettingKeyAvailableChannelsEnabled] == "true",
+		Enabled:                vals[SettingKeyAvailableChannelsEnabled] == "true",
+		QuotaVisible:           quotaVisible,
+		AccountsVisible:        normalizeAvailableChannelsAccountsVisible(quotaVisible, vals[SettingKeyAvailableChannelsAccountsVisible] != "false"),
+		CacheHitRateVisible:    vals[SettingKeyAvailableChannelsCacheHitRateVisible] == "true",
+		TimelineEnabled:        vals[SettingKeyAvailableChannelsTimelineEnabled] != "false",
+		TimelineRequestCount:   parseAvailableChannelsTimelineRequestCount(vals[SettingKeyAvailableChannelsTimelineRequestCount]),
+		TimelineRefreshSeconds: parseAvailableChannelsTimelineRefreshSeconds(vals[SettingKeyAvailableChannelsTimelineRefreshSeconds]),
 	}
 }
 
@@ -634,9 +723,14 @@ type PublicSettingsInjectionPayload struct {
 	DocURL                              string                   `json:"doc_url"`
 	HomeContent                         string                   `json:"home_content"`
 	CompactHomeEnabled                  bool                     `json:"compact_home_enabled"`
+	QQGroupEnabled                      bool                     `json:"qq_group_enabled"`
+	QQGroupQRCode                       string                   `json:"qq_group_qr_code"`
+	QQGroupDescription                  string                   `json:"qq_group_description"`
 	HideCcsImportButton                 bool                     `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled         bool                     `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL             string                   `json:"purchase_subscription_url"`
+	CloudCatStoreURL                    string                   `json:"cloudcat_store_url"`
+	CloudCatPlans                       []CloudCatPlan           `json:"cloudcat_plans"`
 	TableDefaultPageSize                int                      `json:"table_default_page_size"`
 	TablePageSizeOptions                []int                    `json:"table_page_size_options"`
 	CustomMenuItems                     json.RawMessage          `json:"custom_menu_items"`
@@ -673,24 +767,30 @@ type PublicSettingsInjectionPayload struct {
 	ChannelMonitorDefaultIntervalSeconds int    `json:"channel_monitor_default_interval_seconds"`
 	// ChannelMonitorHideThroughput is public so the user UI can hide RPM/TPM
 	// without waiting for API redaction alone (defense in depth).
-	ChannelMonitorHideThroughput bool `json:"channel_monitor_hide_throughput"`
+	ChannelMonitorHideThroughput            bool `json:"channel_monitor_hide_throughput"`
+	ChannelMonitorHideUserRanking           bool `json:"channel_monitor_hide_user_ranking"`
+	AvailableChannelsEnabled                bool `json:"available_channels_enabled"`
+	AvailableChannelsQuotaVisible           bool `json:"available_channels_quota_visible"`
+	AvailableChannelsAccountsVisible        bool `json:"available_channels_accounts_visible"`
+	AvailableChannelsCacheHitRateVisible    bool `json:"available_channels_cache_hit_rate_visible"`
+	AvailableChannelsTimelineEnabled        bool `json:"available_channels_timeline_enabled"`
+	AvailableChannelsTimelineRequestCount   int  `json:"available_channels_timeline_request_count"`
+	AvailableChannelsTimelineRefreshSeconds int  `json:"available_channels_timeline_refresh_seconds"`
+	ModelPlazaEnabled                       bool `json:"model_plaza_enabled"`
+	ModelPlazaRequireAuth                   bool `json:"model_plaza_require_auth"`
+	AffiliateEnabled                        bool `json:"affiliate_enabled"`
+	RiskControlEnabled                      bool `json:"risk_control_enabled"`
+	AllowUserViewErrorRequests              bool `json:"allow_user_view_error_requests"`
 	// ChannelMonitorShowQuota gates the user-facing quota/balance display on
 	// monitors; fail-closed (absent/false = hidden). Admin UI always shows it.
 	// ChannelMonitorHideUserRanking hides the user ranking tab and /users payload
 	// from non-admin channel-monitor v2 viewers; default false (visible).
-	ChannelMonitorHideUserRanking bool `json:"channel_monitor_hide_user_ranking"`
-	ChannelMonitorShowQuota       bool `json:"channel_monitor_show_quota"`
-	AvailableChannelsEnabled      bool `json:"available_channels_enabled"`
-	PelicanShowcaseEnabled        bool `json:"pelican_showcase_enabled"`
-	SubscriptionEnabled           bool `json:"subscription_enabled"`
-	ModelPlazaEnabled             bool `json:"model_plaza_enabled"`
-	ModelPlazaRequireAuth         bool `json:"model_plaza_require_auth"`
-	PluginManagementEnabled       bool `json:"plugin_management_enabled"`
-	SupportTicketEnabled          bool `json:"support_ticket_enabled"`
-	AffiliateEnabled              bool `json:"affiliate_enabled"`
-	RiskControlEnabled            bool `json:"risk_control_enabled"`
-	AllowUserViewErrorRequests    bool `json:"allow_user_view_error_requests"`
-	UsageShowLongContextBadge     bool `json:"usage_show_long_context_badge"`
+	ChannelMonitorShowQuota   bool `json:"channel_monitor_show_quota"`
+	PelicanShowcaseEnabled    bool `json:"pelican_showcase_enabled"`
+	SubscriptionEnabled       bool `json:"subscription_enabled"`
+	PluginManagementEnabled   bool `json:"plugin_management_enabled"`
+	SupportTicketEnabled      bool `json:"support_ticket_enabled"`
+	UsageShowLongContextBadge bool `json:"usage_show_long_context_badge"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -733,9 +833,14 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		DocURL:                              settings.DocURL,
 		HomeContent:                         settings.HomeContent,
 		CompactHomeEnabled:                  settings.CompactHomeEnabled,
+		QQGroupEnabled:                      settings.QQGroupEnabled,
+		QQGroupQRCode:                       settings.QQGroupQRCode,
+		QQGroupDescription:                  settings.QQGroupDescription,
 		HideCcsImportButton:                 settings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:         settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:             settings.PurchaseSubscriptionURL,
+		CloudCatStoreURL:                    settings.CloudCatStoreURL,
+		CloudCatPlans:                       settings.CloudCatPlans,
 		TableDefaultPageSize:                settings.TableDefaultPageSize,
 		TablePageSizeOptions:                settings.TablePageSizeOptions,
 		CustomMenuItems:                     filterUserVisibleMenuItems(settings.CustomMenuItems),
@@ -761,25 +866,31 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		BalanceLowNotifyThreshold:           settings.BalanceLowNotifyThreshold,
 		BalanceLowNotifyRechargeURL:         settings.BalanceLowNotifyRechargeURL,
 
-		ChannelMonitorEnabled:                settings.ChannelMonitorEnabled,
-		ExcelBPSEnabled:                      settings.ExcelBPSEnabled,
-		PrismBrowserEnabled:                  settings.PrismBrowserEnabled,
-		ChannelMonitorMode:                   settings.ChannelMonitorMode,
-		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
-		ChannelMonitorHideThroughput:         settings.ChannelMonitorHideThroughput,
-		ChannelMonitorShowQuota:              settings.ChannelMonitorShowQuota,
-		ChannelMonitorHideUserRanking:        settings.ChannelMonitorHideUserRanking,
-		AvailableChannelsEnabled:             settings.AvailableChannelsEnabled,
-		PelicanShowcaseEnabled:               settings.PelicanShowcaseEnabled,
-		SubscriptionEnabled:                  settings.SubscriptionEnabled,
-		ModelPlazaEnabled:                    settings.ModelPlazaEnabled,
-		ModelPlazaRequireAuth:                settings.ModelPlazaRequireAuth,
-		PluginManagementEnabled:              settings.PluginManagementEnabled,
-		SupportTicketEnabled:                 settings.SupportTicketEnabled,
-		AffiliateEnabled:                     settings.AffiliateEnabled,
-		RiskControlEnabled:                   settings.RiskControlEnabled,
-		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,
-		UsageShowLongContextBadge:            settings.UsageShowLongContextBadge,
+		ChannelMonitorEnabled:                   settings.ChannelMonitorEnabled,
+		ExcelBPSEnabled:                         settings.ExcelBPSEnabled,
+		PrismBrowserEnabled:                     settings.PrismBrowserEnabled,
+		ChannelMonitorMode:                      settings.ChannelMonitorMode,
+		ChannelMonitorDefaultIntervalSeconds:    settings.ChannelMonitorDefaultIntervalSeconds,
+		ChannelMonitorHideThroughput:            settings.ChannelMonitorHideThroughput,
+		ChannelMonitorShowQuota:                 settings.ChannelMonitorShowQuota,
+		ChannelMonitorHideUserRanking:           settings.ChannelMonitorHideUserRanking,
+		AvailableChannelsEnabled:                settings.AvailableChannelsEnabled,
+		PelicanShowcaseEnabled:                  settings.PelicanShowcaseEnabled,
+		SubscriptionEnabled:                     settings.SubscriptionEnabled,
+		ModelPlazaEnabled:                       settings.ModelPlazaEnabled,
+		ModelPlazaRequireAuth:                   settings.ModelPlazaRequireAuth,
+		PluginManagementEnabled:                 settings.PluginManagementEnabled,
+		SupportTicketEnabled:                    settings.SupportTicketEnabled,
+		AffiliateEnabled:                        settings.AffiliateEnabled,
+		RiskControlEnabled:                      settings.RiskControlEnabled,
+		AllowUserViewErrorRequests:              settings.AllowUserViewErrorRequests,
+		UsageShowLongContextBadge:               settings.UsageShowLongContextBadge,
+		AvailableChannelsQuotaVisible:           settings.AvailableChannelsQuotaVisible,
+		AvailableChannelsAccountsVisible:        settings.AvailableChannelsAccountsVisible,
+		AvailableChannelsCacheHitRateVisible:    settings.AvailableChannelsCacheHitRateVisible,
+		AvailableChannelsTimelineEnabled:        settings.AvailableChannelsTimelineEnabled,
+		AvailableChannelsTimelineRequestCount:   settings.AvailableChannelsTimelineRequestCount,
+		AvailableChannelsTimelineRefreshSeconds: settings.AvailableChannelsTimelineRefreshSeconds,
 	}, nil
 }
 
