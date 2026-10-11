@@ -43,6 +43,13 @@ describe('AppSidebar scroll position persistence', () => {
 })
 
 describe('AppSidebar shared account navigation', () => {
+  it('keeps exactly one available-channels entry at the start of the shared menu', () => {
+    const sharedMenu = componentSource.match(/function buildSelfNavItems\(withDashboard: boolean\): NavItem\[\] \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const paths = [...sharedMenu.matchAll(/path: '([^']+)'/g)].map(match => match[1])
+    expect(paths[0]).toBe('/available-channels')
+    expect(paths.filter(path => path === '/available-channels')).toHaveLength(1)
+  })
+
   it('includes activities in the navigation shared by users and the admin My Account section', () => {
     expect(componentSource).toContain("{ path: '/activities', label: t('nav.activities')")
     expect(componentSource).toContain('const personalNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(false)))')
