@@ -39,7 +39,7 @@
     <!-- The iframe is not interactive content of a button, so a full-card overlay opens the preview. -->
     <button
       type="button"
-      class="absolute inset-0 z-10 rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+      class="pelican-showcase-open absolute inset-0 z-10 rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
       :aria-label="`${label} · ${t('pelicanShowcase.preview')}`"
       @click="emit('open')"
     />

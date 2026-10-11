@@ -12,6 +12,17 @@
 }
 
 @tailwind base;
+
+/* This button is a hit target over the artwork, not a painted theme control.
+   Preserve its keyboard focus outline while keeping every pointer state clear. */
+.pixel-world button.pelican-showcase-open,
+.pixel-world button.pelican-showcase-open:hover,
+.pixel-world button.pelican-showcase-open:active {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
 @tailwind components;
 @tailwind utilities;
 

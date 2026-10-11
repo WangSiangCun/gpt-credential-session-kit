@@ -35,6 +35,20 @@ afterEach(() => {
 })
 
 describe('PelicanShowcaseCard', () => {
+  it('keeps the non-interactive artwork isolated and opens it through an accessible overlay', async () => {
+    const wrapper = mount(PelicanShowcaseCard, { props: {
+      item, groupName: 'GPT Plus', body: { status: 'ready', html: '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="440"><rect width="600" height="440" fill="red"/></svg>' },
+    } })
+    const frame = wrapper.get('iframe')
+    expect(frame.attributes('sandbox')).toBe('allow-scripts')
+    expect(frame.attributes('tabindex')).toBe('-1')
+    const button = wrapper.get('button')
+    expect(button.attributes('aria-label')).toContain('GPT Plus')
+    await button.trigger('click')
+    expect(wrapper.emitted('open')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
   it('asks for its HTML only once it stays in view, so cards a drag sweeps past load nothing', () => {
     const wrapper = mount(PelicanShowcaseCard, { props: { item, groupName: 'GPT Plus' } })
     // The same lookahead covers cards below the fold and cards still hidden in their row.
