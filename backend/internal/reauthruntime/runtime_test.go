@@ -64,6 +64,36 @@ type transportFunc func(*http.Request) (*http.Response, error)
 
 func (f transportFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
+func TestPrepareUsesMatchingReleaseForPoolAIBuild(t *testing.T) {
+	for _, tc := range []struct{ build, release string }{
+		{"2.10.5-poolai", "2.10.5"},
+		{"v2.10.5-poolai", "2.10.5"},
+		{"2.10.5", "2.10.5"},
+		{"2.11.0-rc.1-poolai", "2.11.0-rc.1"},
+		{"2.11.0-rc.1", "2.11.0-rc.1"},
+		{"2.10.5-other", "2.10.5-other"},
+	} {
+		t.Run(tc.build, func(t *testing.T) {
+			m := New(t.TempDir(), tc.build, "http://127.0.0.1:8080", "test-token")
+			requests := 0
+			m.client = &http.Client{Transport: transportFunc(func(req *http.Request) (*http.Response, error) {
+				requests++
+				if requests == 1 {
+					require.Equal(t, "https://api.github.com/repos/ranxi2001/sub2api/releases/tags/v"+tc.release, req.URL.String())
+					body, err := json.Marshal(map[string]any{"assets": []map[string]string{{"name": "sub2api-reauth_" + tc.release + "_linux_" + runtime.GOARCH + ".tar.gz", "digest": "sha256:" + strings.Repeat("0", 64)}}})
+					require.NoError(t, err)
+					return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(body))}, nil
+				}
+				require.Equal(t, "https://github.com/ranxi2001/sub2api/releases/download/v"+tc.release+"/sub2api-reauth_"+tc.release+"_linux_"+runtime.GOARCH+".tar.gz", req.URL.String())
+				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("tampered archive"))}, nil
+			})}
+			_, err := m.prepare(context.Background())
+			require.ErrorContains(t, err, "checksum mismatch")
+			require.Equal(t, 2, requests)
+		})
+	}
+}
+
 func TestPrepareVerifiesDigestBeforeExecutingAndReusesCache(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("Linux runtime")

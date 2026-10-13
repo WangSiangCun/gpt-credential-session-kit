@@ -45,8 +45,11 @@ type Manager struct {
 
 func New(root, version, baseURL, token string) *Manager {
 	root, _ = filepath.Abs(root)
+	// PoolAI builds retain the upstream release runtime; preserve other suffixes
+	// (including upstream prereleases) rather than guessing compatibility.
+	version = strings.TrimSuffix(strings.TrimPrefix(version, "v"), "-poolai")
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Manager{root: root, version: strings.TrimPrefix(version, "v"), baseURL: baseURL, token: token,
+	return &Manager{root: root, version: version, baseURL: baseURL, token: token,
 		ctx: ctx, cancel: cancel, client: &http.Client{Timeout: 5 * time.Minute},
 		status: Status{Mode: "managed", State: "idle"}}
 }
