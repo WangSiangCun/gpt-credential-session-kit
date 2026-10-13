@@ -20,6 +20,7 @@ func firstNonEmpty(values ...string) string {
 type SystemSettings struct {
 	OpenAICodexTicketHarvestScope       CodexTicketHarvestScope
 	OpenAICodexTicketStrictResponse     bool
+	OpenAICodexTicketCandyObservation   bool
 	OpenAICodexTicketFailClosed         bool
 	OpenAICodexTicketStrategy           string
 	RegistrationEnabled                 bool
@@ -367,6 +368,8 @@ type SystemSettings struct {
 	// 使用详情中长上下文计费 x2 徽标的展示开关（默认开启）
 	ExcelBPSImageMode             string
 	UsageShowLongContextBadge     bool
+	UsageShowCacheRate            bool
+	UsageShowCacheRateToUsers     bool
 	ExcelBPSImageRelayEnabled     bool
 	ExcelBPSImageBaseURL          string
 	ExcelBPSImageBodyLimitMiB     int
@@ -506,6 +509,10 @@ type PublicSettings struct {
 
 	// 使用详情中长上下文计费 x2 徽标的展示开关（默认开启）
 	UsageShowLongContextBadge bool `json:"usage_show_long_context_badge"`
+
+	// 使用记录单条缓存率。功能默认开启；向用户展示默认关闭。
+	UsageShowCacheRate        bool `json:"usage_show_cache_rate"`
+	UsageShowCacheRateToUsers bool `json:"usage_show_cache_rate_to_users"`
 }
 
 type LoginAgreementDocument struct {
