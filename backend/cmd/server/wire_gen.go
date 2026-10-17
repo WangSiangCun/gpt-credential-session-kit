@@ -68,20 +68,35 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	proxyLatencyCache := repository.NewProxyLatencyCache(redisClient)
 	groupRepository := repository.NewGroupRepository(client, db)
 	apiKeyCache := repository.NewAPIKeyCache(redisClient)
-	concurrencyCache := repository.ProvideConcurrencyCache(redisClient, configConfig)
+	concurrencyCache, err := repository.ProvideConcurrencyCache(redisClient, configConfig, db)
+	if err != nil {
+		return nil, err
+	}
 	accountRepository := repository.NewAccountRepository(client, db, schedulerCache)
 	concurrencyService := service.ProvideConcurrencyService(concurrencyCache, accountRepository, configConfig)
-	apiKeyService := service.ProvideAPIKeyService(apiKeyRepository, userRepository, groupRepository, userSubscriptionRepository, userGroupRateRepository, apiKeyCache, configConfig, billingCacheService, concurrencyService)
+	regionalAuthAuthority := repository.NewRegionalAuthAuthority(db)
+	apiKeyService, err := service.ProvideAPIKeyService(apiKeyRepository, userRepository, groupRepository, userSubscriptionRepository, userGroupRateRepository, apiKeyCache, configConfig, billingCacheService, concurrencyService, regionalAuthAuthority)
+	if err != nil {
+		return nil, err
+	}
 	apiKeyAuthCacheInvalidator := service.ProvideAPIKeyAuthCacheInvalidator(apiKeyService)
 	settingRepository := repository.NewSettingRepository(client)
 	settingService := service.ProvideSettingService(settingRepository, groupRepository, proxyRepository, configConfig)
 	subscriptionService := service.NewSubscriptionService(groupRepository, userSubscriptionRepository, billingCacheService, client, configConfig)
 	privacyClientFactory := providePrivacyClientFactory()
+	regionalMetering, err := repository.ProvideRegionalMetering(db, configConfig, concurrencyCache, redisClient)
+	if err != nil {
+		return nil, err
+	}
 	usageLogRepository := repository.NewUsageLogRepository(client, db)
 	usageBillingRepository := repository.NewUsageBillingRepository(client, db)
 	gatewayCache := repository.NewGatewayCache(redisClient)
 	schedulerOutboxRepository := repository.NewSchedulerOutboxRepository(db)
-	schedulerSnapshotService := service.ProvideSchedulerSnapshotService(schedulerCache, schedulerOutboxRepository, accountRepository, groupRepository, configConfig)
+	regionalSchedulerAuthority := repository.NewRegionalSchedulerAuthority(db)
+	schedulerSnapshotService, err := service.ProvideSchedulerSnapshotService(schedulerCache, schedulerOutboxRepository, accountRepository, groupRepository, configConfig, regionalSchedulerAuthority)
+	if err != nil {
+		return nil, err
+	}
 	pricingRemoteClient := repository.ProvidePricingRemoteClient(configConfig)
 	pricingService, err := service.ProvidePricingService(configConfig, pricingRemoteClient)
 	if err != nil {
@@ -105,7 +120,8 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	emailCache := repository.NewEmailCache(redisClient)
 	emailService := service.NewEmailService(settingRepository, emailCache)
 	usageCache := service.NewUsageCache()
-	accountOpsService := service.ProvideAccountOpsService(settingRepository, accountOpsRepository, emailService, accountRepository, groupRepository, configConfig, secretEncryptor, usageCache, usageLogRepository, geminiQuotaService)
+	newAPIAuthorizationRepository := repository.NewNewAPIAuthorizationRepository(db)
+	accountOpsService := service.ProvideAccountOpsService(settingRepository, accountOpsRepository, emailService, accountRepository, groupRepository, configConfig, secretEncryptor, usageCache, usageLogRepository, geminiQuotaService, newAPIAuthorizationRepository)
 	rateLimitService := service.ProvideRateLimitService(accountRepository, usageLogRepository, configConfig, geminiQuotaService, tempUnschedCache, timeoutCounterCache, openAI403CounterCache, settingService, compositeTokenCacheInvalidator, ollamaCloudUsageService, accountOpsService, redisClient)
 	timingWheelService, err := service.ProvideTimingWheelService()
 	if err != nil {
@@ -113,7 +129,8 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	}
 	deferredService := service.ProvideDeferredService(accountRepository, timingWheelService)
 	openAIOAuthClient := repository.NewOpenAIOAuthClient()
-	openAIOAuthService := service.ProvideOpenAIOAuthService(proxyRepository, openAIOAuthClient, privacyClientFactory)
+	openAISessionCookieRepository := repository.NewOpenAISessionCookieRepository(db)
+	openAIOAuthService := service.ProvideOpenAIOAuthService(proxyRepository, openAIOAuthClient, privacyClientFactory, openAISessionCookieRepository, secretEncryptor, configConfig)
 	oAuthRefreshAPI := service.ProvideOAuthRefreshAPI(accountRepository, geminiTokenCache)
 	openAITokenProvider := service.ProvideOpenAITokenProvider(accountRepository, geminiTokenCache, openAIOAuthService, oAuthRefreshAPI)
 	grokOAuthClient := repository.NewGrokOAuthClient()
@@ -130,31 +147,33 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	codexHarvestFlowRepository := repository.NewCodexHarvestFlowRepository(db)
 	codexHarvestService := service.ProvideCodexHarvestService(codexHarvestNodeRepository, settingRepository, configConfig, codexHarvestFlowRepository)
 	openAIGatewayDependencies := service.OpenAIGatewayDependencies{
-		Accounts:      accountRepository,
-		Proxies:       proxyRepository,
-		UsageLogs:     usageLogRepository,
-		UsageBilling:  usageBillingRepository,
-		Users:         userRepository,
-		Subscriptions: userSubscriptionRepository,
-		GroupRates:    userGroupRateRepository,
-		Cache:         gatewayCache,
-		Config:        configConfig,
-		Scheduler:     schedulerSnapshotService,
-		Concurrency:   concurrencyService,
-		Billing:       billingService,
-		RateLimit:     rateLimitService,
-		BillingCache:  billingCacheService,
-		Upstream:      httpUpstream,
-		Deferred:      deferredService,
-		OpenAITokens:  openAITokenProvider,
-		GrokTokens:    grokTokenProvider,
-		Pricing:       modelPricingResolver,
-		Channels:      channelService,
-		BalanceNotify: balanceNotifyService,
-		Settings:      settingService,
-		Quotas:        serviceUserPlatformQuotaRepository,
-		RPMCache:      rpmCache,
-		Harvest:       codexHarvestService,
+		TimezoneProber:   proxyExitInfoProber,
+		RegionalMetering: regionalMetering,
+		Accounts:         accountRepository,
+		Proxies:          proxyRepository,
+		UsageLogs:        usageLogRepository,
+		UsageBilling:     usageBillingRepository,
+		Users:            userRepository,
+		Subscriptions:    userSubscriptionRepository,
+		GroupRates:       userGroupRateRepository,
+		Cache:            gatewayCache,
+		Config:           configConfig,
+		Scheduler:        schedulerSnapshotService,
+		Concurrency:      concurrencyService,
+		Billing:          billingService,
+		RateLimit:        rateLimitService,
+		BillingCache:     billingCacheService,
+		Upstream:         httpUpstream,
+		Deferred:         deferredService,
+		OpenAITokens:     openAITokenProvider,
+		GrokTokens:       grokTokenProvider,
+		Pricing:          modelPricingResolver,
+		Channels:         channelService,
+		BalanceNotify:    balanceNotifyService,
+		Settings:         settingService,
+		Quotas:           serviceUserPlatformQuotaRepository,
+		RPMCache:         rpmCache,
+		Harvest:          codexHarvestService,
 	}
 	openAIGatewayService := service.ProvideOpenAIGatewayService(openAIGatewayDependencies)
 	affiliateRepository := repository.NewAffiliateRepository(client, db)
@@ -356,8 +375,6 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	lotteryRepository := repository.NewLotteryRepository(db)
 	lotteryService := service.NewLotteryService(lotteryRepository)
 	lotteryHandler := admin.NewLotteryHandler(lotteryService)
-	newAPIAuthorizationRepository := repository.NewNewAPIAuthorizationRepository(db)
-	accountOpsService.SetNewAPIGroupReader(newAPIAuthorizationRepository)
 	upstreamBillingProbeService := service.ProvideUpstreamBillingProbeService(accountRepository, accountTestService, settingService, balanceNotifyService, leaderLockCache, db, configConfig, newAPIAuthorizationRepository, secretEncryptor)
 	openCodeGoUsageService := service.ProvideOpenCodeGoUsageService(accountRepository, httpUpstream, settingService, leaderLockCache, db, configConfig)
 	adminHandlers := handler.ProvideAdminHandlers(requestCaptureHandler, dashboardHandler, adminUserHandler, groupHandler, accountHandler, adminAnnouncementHandler, dataManagementHandler, backupHandler, oAuthHandler, openAIOAuthHandler, openAIOAuthReauthHandler, geminiOAuthHandler, antigravityOAuthHandler, grokOAuthHandler, cnProviderHandler, proxyHandler, adminRedeemHandler, promoHandler, settingHandler, opsHandler, systemHandler, adminSubscriptionHandler, adminUsageHandler, userAttributeHandler, errorPassthroughHandler, tlsFingerprintProfileHandler, pluginHandler, adminAPIKeyHandler, scheduledTestHandler, pelicanGroupTestHandler, controlledExperimentHandler, accountOpsHandler, accountTokenGuardHandler, accountTokenGuardV2Handler, channelHandler, channelMonitorHandler, channelMonitorRequestTemplateHandler, contentModerationHandler, promptAdminHandler, paymentHandler, affiliateHandler, complianceHandler, auditLogHandler, lotteryHandler, upstreamBillingProbeService, ollamaCloudUsageService, openCodeGoUsageService, settingService, codexHarvestService, openAIGatewayService)
@@ -432,8 +449,8 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	channelMonitorQuotaFetcher := service.NewChannelMonitorQuotaFetcher(accountUsageService, cnProviderQuotaService, cnProviderBalanceService, accountRepository, configConfig)
 	channelMonitorRunner := service.ProvideChannelMonitorRunner(channelMonitorService, settingService, channelMonitorQuotaFetcher, configConfig)
 	channelMonitorV2Aggregator := service.ProvideChannelMonitorV2Aggregator(channelMonitorV2Repository, db, settingService, configConfig)
-	userPlatformQuotaUsageFlusher := service.ProvideUserPlatformQuotaUsageFlusher(configConfig, billingCache, serviceUserPlatformQuotaRepository, timingWheelService)
 	channelMonitorV3Prober := service.ProvideChannelMonitorV3Prober(channelMonitorV3Repository, pelicanGroupTestService, settingService, configConfig)
+	userPlatformQuotaUsageFlusher := service.ProvideUserPlatformQuotaUsageFlusher(configConfig, billingCache, serviceUserPlatformQuotaRepository, timingWheelService)
 	v := provideCleanup(configConfig, manager, client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, opsService, opsIngressRejectAggregator, apiKeyService, concurrencyService, authCacheInvalidationWorker, schedulerSnapshotService, tokenRefreshService, accountExpiryService, cnProviderBalanceCheckService, openAICodexVersionSyncService, claudeCodeVersionSyncService, proxyExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, geminiCachedContentService, batchImageCleanupService, batchImageWorkerRuntime, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, grokOAuthService, openAIGatewayService, scheduledTestRunnerService, controlledExperimentService, accountOpsService, accountTokenGuardService, accountTokenGuardV2Service, backupService, paymentOrderExpiryService, channelMonitorRunner, channelMonitorV2Aggregator, channelMonitorV3Prober, userPlatformQuotaUsageFlusher, upstreamBillingProbeService, ollamaCloudUsageService, openCodeGoUsageService, auditLogService, openAIQuotaAutoResetService, promptService, pluginManager)
 	application := &Application{
 		Database:        db,
@@ -545,6 +562,16 @@ func provideCleanup(
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
+
+		if openAIGateway != nil {
+			stopCtx, stopCancel := context.WithTimeout(ctx, 5*time.Second)
+			err := stopRegionalFunds(stopCtx, openAIGateway.RegionalFundsReadiness())
+			stopCancel()
+			if err != nil {
+				log.Printf("[Cleanup] Funds join failed; dependencies retained: %v", err)
+				return
+			}
+		}
 
 		type cleanupStep struct {
 			name string
