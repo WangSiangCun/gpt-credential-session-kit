@@ -118,7 +118,10 @@ func TestHandleUpstreamError_KimiGeneric403StillEscalates(t *testing.T) {
 	shouldDisable := runKimi403(service, account, `{"error":{"message":"policy rejected this request"}}`)
 
 	require.True(t, shouldDisable)
-	require.Equal(t, 1, repo.setErrorCalls, "non-quota 403 keeps the generic escalation path")
+	require.Zero(t, repo.setErrorCalls)
+	require.Equal(t, 1, repo.tempCalls, "non-quota 403 keeps the generic threshold cooldown")
+	require.Contains(t, repo.lastTempReason, "(3/3)")
+	require.Equal(t, []int64{account.ID}, counter.resetCalls)
 	require.Equal(t, 0, repo.rateLimitedCalls)
 }
 
@@ -133,9 +136,11 @@ func TestHandleUpstreamError_KimiNonCodingPlanQuotaMessageUsesGeneric403(t *test
 	shouldDisable := runKimi403(service, account, kimiWeeklyQuotaExhaustedBody)
 
 	require.True(t, shouldDisable)
-	require.Equal(t, 1, repo.setErrorCalls, "non-coding-plan account must keep the generic 403 escalation")
-	require.Equal(t, 0, repo.rateLimitedCalls)
-	require.Equal(t, 0, repo.tempCalls)
+	require.Zero(t, repo.setErrorCalls)
+	require.Zero(t, repo.rateLimitedCalls)
+	require.Equal(t, 1, repo.tempCalls, "non-coding-plan account uses generic threshold cooldown")
+	require.Contains(t, repo.lastTempReason, "(3/3)")
+	require.Equal(t, []int64{account.ID}, counter.resetCalls)
 }
 
 func TestHandleUpstreamError_NonCNAccessTerminated403KeepsGenericPath(t *testing.T) {
@@ -154,8 +159,9 @@ func TestHandleUpstreamError_NonCNAccessTerminated403KeepsGenericPath(t *testing
 	require.True(t, shouldDisable)
 	require.Equal(t, 0, repo.rateLimitedCalls, "non-CN platform must not enter the CN quota path")
 	require.Equal(t, 0, repo.setErrorCalls)
-	require.Equal(t, 1, repo.tempCalls)
-	require.Contains(t, repo.lastTempReason, "(1/3)")
+	require.Zero(t, repo.tempCalls, "below-threshold 403 only fails over the request")
+	require.Empty(t, counter.counts)
+	require.Empty(t, counter.resetCalls)
 }
 
 func TestIsCNProviderQuotaExhausted403_Classification(t *testing.T) {

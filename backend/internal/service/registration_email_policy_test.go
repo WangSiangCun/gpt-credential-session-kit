@@ -46,17 +46,28 @@ func TestIsRegistrationEmailSuffixAllowed(t *testing.T) {
 }
 
 func TestRegistrationEmailQuotaRejectsMalformedDomainWhenWhitelistConfigured(t *testing.T) {
-	repo := &userRepoStub{}
-	svc := newAuthService(repo, map[string]string{
-		SettingKeyRegistrationEnabled:                 "true",
-		SettingKeyRegistrationEmailSuffixWhitelist:    `["@example.com"]`,
-		SettingKeyRegistrationEmailDomainQuotaEnabled: "true",
-	}, nil, nil)
-
-	_, _, err := svc.Register(context.Background(), "malformed-email", "password")
-
-	require.ErrorIs(t, err, ErrEmailSuffixNotAllowed)
-	require.Empty(t, repo.created)
+	for _, tc := range []struct {
+		email string
+		want  error
+	}{
+		{"malformed-email", ErrEmailLocalPartInvalid},
+		{"user@", ErrEmailSuffixNotAllowed},
+		{"user@invalid_domain", ErrEmailSuffixNotAllowed},
+		{"user@example..com", ErrEmailSuffixNotAllowed},
+	} {
+		t.Run(tc.email, func(t *testing.T) {
+			repo := &userRepoStub{}
+			svc := newAuthService(repo, map[string]string{
+				SettingKeyRegistrationEnabled:                 "true",
+				SettingKeyRegistrationEmailSuffixWhitelist:    `["@example.com"]`,
+				SettingKeyRegistrationEmailDomainQuotaEnabled: "true",
+			}, nil, nil)
+			_, user, err := svc.Register(context.Background(), tc.email, "password")
+			require.ErrorIs(t, err, tc.want)
+			require.Nil(t, user)
+			require.Empty(t, repo.created)
+		})
+	}
 }
 
 func TestIsRegistrationEmailSuffixLimited(t *testing.T) {

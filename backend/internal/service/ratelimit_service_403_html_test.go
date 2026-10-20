@@ -170,23 +170,26 @@ func TestHandleUpstreamError_AnthropicOther403StillPenalizesAccount(t *testing.T
 // 对照不变式：真正的结构化 JSON 403 是账号级证据，处罚链路必须原样保留。
 // 缺了这组断言，上面的跳过逻辑一旦写宽就会把真实的封号 403 也放过去。
 func TestHandleUpstreamError_OpenAIStructured403StillPenalizes(t *testing.T) {
-	t.Run("first_hit_temp_unschedulable", func(t *testing.T) {
+	t.Run("first_hit_counts_without_cooldown", func(t *testing.T) {
 		h := newOpenAI403TestHarness(t, 503, 1)
 
 		require.True(t, h.handle(`{"error":{"message":"Your account is not authorized"}}`))
 		require.Equal(t, 1, h.counter.increments)
-		require.Equal(t, 1, h.repo.tempCalls)
-		require.Equal(t, 0, h.repo.setErrorCalls)
-		require.Contains(t, h.repo.lastTempReason, "Your account is not authorized")
-		require.Len(t, h.blocker.accounts, 1)
+		require.Zero(t, h.repo.tempCalls)
+		require.Zero(t, h.repo.setErrorCalls)
+		require.Empty(t, h.counter.resetCalls)
+		require.Empty(t, h.blocker.accounts)
 	})
 
-	t.Run("threshold_disables", func(t *testing.T) {
+	t.Run("threshold_temporarily_pauses", func(t *testing.T) {
 		h := newOpenAI403TestHarness(t, 504, int64(openAI403DisableThreshold))
 
 		require.True(t, h.handle(`{"error":{"message":"workspace forbidden by policy"}}`))
-		require.Equal(t, 1, h.repo.setErrorCalls)
-		require.Contains(t, h.repo.lastErrorMsg, "workspace forbidden by policy")
+		require.Zero(t, h.repo.setErrorCalls)
+		require.Equal(t, 1, h.repo.tempCalls)
+		require.Contains(t, h.repo.lastTempReason, "workspace forbidden by policy")
+		require.Equal(t, []string{"openai_403_temp"}, h.blocker.reasons)
+		require.Equal(t, []int64{h.account.ID}, h.counter.resetCalls)
 	})
 
 	// 非 HTML 的非结构化响应（纯文本网关错误）不在本次放行范围内，维持原有处罚。
@@ -194,7 +197,9 @@ func TestHandleUpstreamError_OpenAIStructured403StillPenalizes(t *testing.T) {
 		h := newOpenAI403TestHarness(t, 505, 1)
 
 		require.True(t, h.handle("Forbidden"))
-		require.Equal(t, 1, h.repo.tempCalls)
+		require.Equal(t, 1, h.counter.increments)
+		require.Zero(t, h.repo.tempCalls)
+		require.Zero(t, h.repo.setErrorCalls)
 	})
 }
 

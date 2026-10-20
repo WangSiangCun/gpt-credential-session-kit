@@ -178,7 +178,7 @@ func splitEmailForPolicy(raw string) (local string, domain string, ok bool) {
 		return "", "", false
 	}
 	domain = strings.TrimRight(domain, ".")
-	if domain == "" {
+	if !isValidRegistrationEmailDomain(domain) {
 		return "", "", false
 	}
 	return local, domain, true

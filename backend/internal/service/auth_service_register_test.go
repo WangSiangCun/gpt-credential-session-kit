@@ -770,21 +770,43 @@ func TestAuthService_LoginOrRegisterOAuthWithTokenPair_UsesLinuxDoAuthSourceDefa
 	require.Equal(t, 14, assigner.calls[0].ValidityDays)
 }
 
-func TestAuthService_LoginOrRegisterOAuthWithTokenPair_RejectsSpecialCharactersOnSignup(t *testing.T) {
-	service := newAuthService(&userRepoStub{}, map[string]string{
-		SettingKeyRegistrationEnabled: "true",
-	}, nil, nil)
-	service.refreshTokenCache = &refreshTokenCacheStub{}
-
-	_, _, err := service.LoginOrRegisterOAuthWithTokenPair(
-		context.Background(),
-		"first.last@example.com",
-		"oauth_user",
-		"",
-		"",
-		"google",
-	)
-	require.ErrorIs(t, err, ErrEmailLocalPartInvalid)
+// OAuth identities follow the upstream email syntax policy, not the custom
+// password-signup alphanumeric policy. Never rewrite the provider identity.
+func TestAuthService_LoginOrRegisterOAuthWithTokenPair_EmailSyntaxOnSignup(t *testing.T) {
+	for _, tc := range []struct {
+		email string
+		valid bool
+	}{
+		{"first.last@example.com", true},
+		{"first+tag@example.com", true},
+		{"first_last@example.com", true},
+		{"malformed-email", false},
+		{"", false},
+		{"user@@example.com", false},
+	} {
+		t.Run(tc.email, func(t *testing.T) {
+			repo := &userRepoStub{nextID: 62}
+			service := newAuthService(repo, map[string]string{
+				SettingKeyRegistrationEnabled: "true",
+			}, nil, nil)
+			service.refreshTokenCache = &refreshTokenCacheStub{}
+			pair, user, err := service.LoginOrRegisterOAuthWithTokenPair(
+				context.Background(), tc.email, "oauth_user", "", "", "google",
+			)
+			if !tc.valid {
+				require.ErrorIs(t, err, infraerrors.BadRequest("INVALID_EMAIL", "invalid email"))
+				require.Nil(t, pair)
+				require.Nil(t, user)
+				require.Empty(t, repo.created)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, pair)
+			require.NotNil(t, user)
+			require.Equal(t, tc.email, user.Email)
+			require.Len(t, repo.created, 1)
+		})
+	}
 }
 
 func TestAuthService_LoginOrRegisterOAuthWithTokenPair_ExistingUserDoesNotGrantAgain(t *testing.T) {
