@@ -231,6 +231,7 @@ func TestAPIContracts(t *testing.T) {
 					"key": "sk_custom_1234567890",
 					"name": "Key One",
 					"group_id": null,
+					"group_ids": [],
 					"status": "active",
 					"ip_whitelist": null,
 					"ip_blacklist": null,
@@ -283,6 +284,7 @@ func TestAPIContracts(t *testing.T) {
 							"key": "sk_custom_1234567890",
 							"name": "Key One",
 							"group_id": null,
+							"group_ids": [],
 							"status": "active",
 							"ip_whitelist": null,
 							"ip_blacklist": null,
@@ -718,6 +720,7 @@ func TestAPIContracts(t *testing.T) {
 				"message": "success",
 				"data": {
 					"registration_enabled": true,
+					"login_rate_limit_enabled": true,
 					"email_verify_enabled": false,
 					"registration_email_suffix_whitelist": [],
 					"registration_email_domain_quota_enabled": false,
@@ -1036,6 +1039,22 @@ func TestAPIContracts(t *testing.T) {
 					"channel_monitor_hide_user_ranking": false,
 					"channel_monitor_default_interval_seconds": 60,
 					"available_channels_enabled": false,
+                    "available_channels_accounts_visible": false,
+                    "available_channels_cache_hit_rate_visible": false,
+                    "available_channels_quota_visible": false,
+                    "available_channels_timeline_enabled": true,
+                    "available_channels_timeline_refresh_seconds": 2,
+                    "available_channels_timeline_request_count": 1000,
+                    "qq_group_enabled": false,
+                    "qq_group_qr_code": "",
+                    "qq_group_description": "",
+                    "cloudcat_store_url": "",
+                    "cloudcat_plans": [
+                        {"amount":10,"pay_amount":10,"image":"/payment/10.png"},
+                        {"amount":20,"pay_amount":20,"image":"/payment/20.png"},
+                        {"amount":50,"pay_amount":50,"image":"/payment/50.png"},
+                        {"amount":100,"pay_amount":100,"image":"/payment/100.png"}
+                    ],
 					"pelican_showcase_enabled": false,
 					"pelican_showcase_config": {"max_items": 20, "auto_cleanup": true, "retention_days": 7},
 					"subscription_enabled": true,
@@ -1123,6 +1142,7 @@ func TestAPIContracts(t *testing.T) {
 				"message": "success",
 				"data": {
 					"registration_enabled": true,
+					"login_rate_limit_enabled": true,
 					"email_verify_enabled": false,
 					"registration_email_suffix_whitelist": [],
 					"registration_email_domain_quota_enabled": false,
@@ -1405,6 +1425,22 @@ func TestAPIContracts(t *testing.T) {
 					"channel_monitor_hide_user_ranking": false,
 					"channel_monitor_default_interval_seconds": 60,
 					"available_channels_enabled": false,
+                    "available_channels_accounts_visible": false,
+                    "available_channels_cache_hit_rate_visible": false,
+                    "available_channels_quota_visible": false,
+                    "available_channels_timeline_enabled": true,
+                    "available_channels_timeline_refresh_seconds": 2,
+                    "available_channels_timeline_request_count": 1000,
+                    "qq_group_enabled": false,
+                    "qq_group_qr_code": "",
+                    "qq_group_description": "",
+                    "cloudcat_store_url": "",
+                    "cloudcat_plans": [
+                        {"amount":10,"pay_amount":10,"image":"/payment/10.png"},
+                        {"amount":20,"pay_amount":20,"image":"/payment/20.png"},
+                        {"amount":50,"pay_amount":50,"image":"/payment/50.png"},
+                        {"amount":100,"pay_amount":100,"image":"/payment/100.png"}
+                    ],
 					"pelican_showcase_enabled": false,
 					"pelican_showcase_config": {"max_items": 20, "auto_cleanup": true, "retention_days": 7},
 					"subscription_enabled": true,
@@ -1591,7 +1627,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 	settingRepo := newStubSettingRepo()
 	settingService := service.NewSettingService(settingRepo, cfg)
 
-	adminService := service.NewAdminService(nil, userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	adminService := service.NewAdminService(nil, userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	authHandler := handler.NewAuthHandler(cfg, nil, userService, settingService, nil, redeemService, nil, nil)
 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
 	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, nil, nil)
@@ -2818,6 +2854,10 @@ func (r *stubUsageLogRepo) GetUserStatsAggregated(ctx context.Context, userID in
 		TotalActualCost:          totalActualCost,
 		AverageDurationMs:        avgDuration,
 	}, nil
+}
+
+func (r *stubUsageLogRepo) GetChannelRequestTimelines(context.Context, []int64, int) (map[int64]*service.ChannelRequestTimeline, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (r *stubUsageLogRepo) GetAPIKeyStatsAggregated(ctx context.Context, apiKeyID int64, startTime, endTime time.Time) (*usagestats.UsageStats, error) {

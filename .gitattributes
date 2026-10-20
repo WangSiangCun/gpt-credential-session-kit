@@ -20,3 +20,6 @@ backend/migrations/*.sql text eol=lf
 
 # Dockerfile
 Dockerfile text eol=lf
+
+# Preserve the reviewed embedded ModelTrace fingerprint bank checksum.
+backend/internal/pkg/modeltrace/data/unified_bank.json text eol=lf
