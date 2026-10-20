@@ -166,31 +166,8 @@ type upstreamBillingProbeHTTPStub struct {
 	balanceCalls   atomic.Int64
 	active         atomic.Int64
 	maxActive      atomic.Int64
-	beforeResponse func()
 	responseBody   string
-}
-
-type upstreamBalanceNotifierCall struct {
-	accountID int64
-	balance   float64
-	threshold float64
-	currency  string
-}
-
-type upstreamBalanceNotifierStub struct {
-	mu      sync.Mutex
-	calls   []upstreamBalanceNotifierCall
-	enabled bool
-}
-
-func (n *upstreamBalanceNotifierStub) CanNotifyUpstreamBalanceLow() bool {
-	return n.enabled
-}
-
-func (n *upstreamBalanceNotifierStub) NotifyUpstreamBalanceLow(account *Account, balance, threshold float64, currency string, _ time.Time) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.calls = append(n.calls, upstreamBalanceNotifierCall{accountID: account.ID, balance: balance, threshold: threshold, currency: currency})
+	beforeResponse func()
 }
 
 func (u *upstreamBillingProbeHTTPStub) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
@@ -651,20 +628,6 @@ func TestUpstreamBillingProbeWithoutSyncIgnoresUnusableDeclaredRate(t *testing.T
 	require.Nil(t, account.RateMultiplier)
 }
 
-func TestUpstreamBillingProbeRejectsMissingRequiredMultiplier(t *testing.T) {
-	_, err := parseUpstreamBillingProbeResponse([]byte(`{
-		"object":"sub2api.key_billing",
-		"schema_version":1,
-		"billing_scope":"token",
-		"group_rate_multiplier":0.8,
-		"peak_rate_enabled":false,
-		"effective_rate_multiplier":0.8,
-		"observed_at":"2026-07-13T01:00:00Z"
-	}`))
-
-	require.ErrorContains(t, err, "incomplete billing response")
-}
-
 func TestUpstreamBillingProbeParsesOptionalBalance(t *testing.T) {
 	base := `{
 		"object":"sub2api.key_billing","schema_version":1,"billing_scope":"token",
@@ -692,144 +655,18 @@ func TestUpstreamBillingProbeParsesOptionalBalance(t *testing.T) {
 	}
 }
 
-func TestParseUpstreamUsageBalanceResponse(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		body     string
-		balance  float64
-		currency string
-	}{
-		{name: "ccs unrestricted", body: `{"mode":"unrestricted","remaining":20.07,"balance":20.07,"unit":"USD"}`, balance: 20.07, currency: "USD"},
-		{name: "quota limited", body: `{"mode":"quota_limited","quota":{"remaining":8.09,"unit":"USD"}}`, balance: 8.09, currency: "USD"},
-		{name: "string balance", body: `{"balance":"3.50","currency":"usd"}`, balance: 3.5, currency: "USD"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			balance, currency, ok := parseUpstreamUsageBalanceResponse([]byte(tc.body))
-			require.True(t, ok)
-			require.InDelta(t, tc.balance, balance, 1e-9)
-			require.Equal(t, tc.currency, currency)
-		})
-	}
-
-	_, _, ok := parseUpstreamUsageBalanceResponse([]byte(`{"remaining":"not-a-number"}`))
-	require.False(t, ok)
-}
-
-func TestUpstreamBalanceAlertStateOnlyNotifiesOnCrossing(t *testing.T) {
-	now := time.Date(2026, time.July, 13, 1, 0, 0, 0, time.UTC)
-	account := &Account{Extra: map[string]any{
-		UpstreamBalanceNotifyEnabledExtraKey:   true,
-		UpstreamBalanceNotifyThresholdExtraKey: 10.0,
-	}}
-	low := func(balance float64) *UpstreamBillingProbeSnapshot {
-		return &UpstreamBillingProbeSnapshot{Status: UpstreamBillingProbeStatusOK, Data: map[string]any{
-			"balance_remaining": balance,
-			"balance_currency":  "USD",
-		}}
-	}
-
-	first := low(5)
-	require.NotNil(t, applyUpstreamBalanceAlertState(account, first, now))
-	require.Equal(t, upstreamBalanceAlertStateBelow, first.BalanceAlertState)
-	account.Extra[UpstreamBillingProbeExtraKey] = first
-
-	repeated := low(4)
-	require.Nil(t, applyUpstreamBalanceAlertState(account, repeated, now.Add(time.Minute)))
-	require.Equal(t, first.BalanceAlertSentAt, repeated.BalanceAlertSentAt)
-	account.Extra[UpstreamBillingProbeExtraKey] = repeated
-	third := low(3)
-	require.Nil(t, applyUpstreamBalanceAlertState(account, third, now.Add(90*time.Second)))
-	require.Equal(t, first.BalanceAlertSentAt, third.BalanceAlertSentAt)
-
-	account.Extra[UpstreamBillingProbeExtraKey] = repeated
-	recovered := low(20)
-	require.Nil(t, applyUpstreamBalanceAlertState(account, recovered, now.Add(2*time.Minute)))
-	require.Equal(t, upstreamBalanceAlertStateNormal, recovered.BalanceAlertState)
-
-	account.Extra[UpstreamBillingProbeExtraKey] = recovered
-	secondCrossing := low(3)
-	require.NotNil(t, applyUpstreamBalanceAlertState(account, secondCrossing, now.Add(3*time.Minute)))
-
-	account.Extra[UpstreamBillingProbeExtraKey] = secondCrossing
-	account.Extra[UpstreamBalanceNotifyThresholdExtraKey] = 6.0
-	thresholdChanged := low(3)
-	require.NotNil(t, applyUpstreamBalanceAlertState(account, thresholdChanged, now.Add(4*time.Minute)))
-
-	missingBalance := &UpstreamBillingProbeSnapshot{Status: UpstreamBillingProbeStatusOK, Data: map[string]any{}}
-	require.Nil(t, applyUpstreamBalanceAlertState(account, missingBalance, now.Add(5*time.Minute)))
-	require.Equal(t, upstreamBalanceAlertStateUnavailable, missingBalance.BalanceAlertState)
-}
-
-func TestUpstreamBillingProbeRunDueTriggersServerSideBalanceAlert(t *testing.T) {
-	account := &Account{
-		ID:          170,
-		Name:        "relay-a",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
-		Concurrency: 1,
-		Credentials: map[string]any{"api_key": "sk-test", "base_url": "https://upstream.example"},
-		Extra: map[string]any{
-			UpstreamBillingProbeEnabledExtraKey:    true,
-			UpstreamBalanceNotifyEnabledExtraKey:   true,
-			UpstreamBalanceNotifyThresholdExtraKey: 10.0,
-		},
-	}
-	repo := &upstreamBillingProbeAccountRepo{accounts: map[int64]*Account{account.ID: account}}
-	upstream := &upstreamBillingProbeHTTPStub{responseBody: `{
-		"object":"sub2api.key_billing","schema_version":1,"billing_scope":"token",
-		"group_rate_multiplier":0.8,"resolved_rate_multiplier":0.8,
-		"peak_rate_enabled":false,"effective_rate_multiplier":0.8,
-		"balance_remaining":5,"balance_currency":"USD",
+func TestUpstreamBillingProbeRejectsMissingRequiredMultiplier(t *testing.T) {
+	_, err := parseUpstreamBillingProbeResponse([]byte(`{
+		"object":"sub2api.key_billing",
+		"schema_version":1,
+		"billing_scope":"token",
+		"group_rate_multiplier":0.8,
+		"peak_rate_enabled":false,
+		"effective_rate_multiplier":0.8,
 		"observed_at":"2026-07-13T01:00:00Z"
-	}`}
-	notifier := &upstreamBalanceNotifierStub{enabled: true}
-	svc := newUpstreamBillingProbeTestService(repo, upstream, &upstreamBillingProbeSettingRepo{})
-	svc.SetBalanceNotifyService(notifier)
+	}`))
 
-	require.NoError(t, svc.RunDue(context.Background()))
-	require.Len(t, notifier.calls, 1)
-	require.Equal(t, upstreamBalanceNotifierCall{accountID: account.ID, balance: 5, threshold: 10, currency: "USD"}, notifier.calls[0])
-
-	_, err := svc.ProbeAccount(context.Background(), account.ID)
-	require.NoError(t, err)
-	require.Len(t, notifier.calls, 1, "a repeated below-threshold probe must not spam alerts")
-}
-
-func TestUpstreamBillingProbeRetriesAlertAfterRecipientBecomesAvailable(t *testing.T) {
-	account := &Account{
-		ID: 171, Name: "relay-b", Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
-		Status: StatusActive, Concurrency: 1,
-		Credentials: map[string]any{"api_key": "sk-test", "base_url": "https://upstream.example"},
-		Extra: map[string]any{
-			UpstreamBillingProbeEnabledExtraKey:    true,
-			UpstreamBalanceNotifyEnabledExtraKey:   true,
-			UpstreamBalanceNotifyThresholdExtraKey: 20.0,
-		},
-	}
-	repo := &upstreamBillingProbeAccountRepo{accounts: map[int64]*Account{account.ID: account}}
-	upstream := &upstreamBillingProbeHTTPStub{responseBody: `{
-		"object":"sub2api.key_billing","schema_version":1,"billing_scope":"token",
-		"group_rate_multiplier":1,"resolved_rate_multiplier":1,
-		"peak_rate_enabled":false,"effective_rate_multiplier":1,
-		"balance_remaining":5,"balance_currency":"USD",
-		"observed_at":"2026-07-13T01:00:00Z"
-	}`}
-	notifier := &upstreamBalanceNotifierStub{}
-	svc := newUpstreamBillingProbeTestService(repo, upstream, &upstreamBillingProbeSettingRepo{})
-	svc.SetBalanceNotifyService(notifier)
-
-	_, err := svc.ProbeAccount(context.Background(), account.ID)
-	require.NoError(t, err)
-	require.Empty(t, notifier.calls)
-	first := decodeUpstreamBillingProbeSnapshot(repo.accounts[account.ID].Extra)
-	require.NotNil(t, first)
-	require.Nil(t, first.BalanceAlertSentAt)
-
-	notifier.enabled = true
-	_, err = svc.ProbeAccount(context.Background(), account.ID)
-	require.NoError(t, err)
-	require.Len(t, notifier.calls, 1)
+	require.ErrorContains(t, err, "incomplete billing response")
 }
 
 func TestUpstreamBillingProbeDiscardsResultWhenIdentityChangesInFlight(t *testing.T) {

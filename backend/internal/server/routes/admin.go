@@ -159,21 +159,8 @@ func RegisterAdminRoutes(
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
 
-		registerAccountMarketRoutes(admin, h)
-
 		// 操作审计日志
 		registerAuditLogRoutes(admin, h, stepUpAuth)
-	}
-}
-
-func registerAccountMarketRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
-	market := admin.Group("/account-market")
-	{
-		market.GET("/config", h.AccountMarket.AdminGetConfig)
-		market.PUT("/config", h.AccountMarket.AdminUpdateConfig)
-		market.GET("/accounts", h.AccountMarket.AdminListAccounts)
-		market.GET("/withdrawals", h.AccountMarket.AdminListWithdrawals)
-		market.PUT("/withdrawals/:id", h.AccountMarket.AdminReviewWithdrawal)
 	}
 }
 

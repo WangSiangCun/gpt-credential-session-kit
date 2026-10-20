@@ -311,17 +311,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/account-market',
-    name: 'AccountMarket',
-    component: () => import('@/views/user/AccountMarketView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'My Accounts',
-      titleKey: 'nav.accountMarket'
-    }
-  },
-  {
     path: '/available-channels',
     name: 'UserAvailableChannels',
     component: () => import('@/views/user/AvailableChannelsView.vue'),
@@ -637,17 +626,6 @@ const routes: RouteRecordRaw[] = [
       title: 'Ticket Harvest Flow',
       titleKey: 'admin.harvestFlow.title',
       descriptionKey: 'admin.harvestFlow.description'
-    }
-  },
-  {
-    path: '/admin/account-market',
-    name: 'AdminAccountMarket',
-    component: () => import('@/views/admin/AccountMarketView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'Account Earnings',
-      titleKey: 'nav.accountMarketAdmin'
     }
   },
   {

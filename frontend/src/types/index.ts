@@ -1202,10 +1202,6 @@ export interface UpstreamBillingProbeSnapshot {
   // Value this probe wrote into the account rate multiplier; absent when the
   // probe did not sync a rate.
   synced_rate_multiplier?: number
-  balance_alert_state?: 'below' | 'normal' | 'disabled' | 'unavailable'
-  balance_alert_threshold?: number
-  balance_alert_currency?: string
-  balance_alert_sent_at?: string
   // Upstream balance read by the same probe; its status is independent of the
   // rate status above.
   balance?: UpstreamBalanceSnapshot
@@ -1402,8 +1398,6 @@ export interface Account {
       available_count?: number
       credits?: { expires_at?: string }[]
     }
-    upstream_balance_notify_enabled?: boolean
-    upstream_balance_notify_threshold?: number
     codex_credits_snapshot?: {
       credits: { has_credits: boolean; unlimited: boolean; balance: string | null } | null
       fetched_at: number

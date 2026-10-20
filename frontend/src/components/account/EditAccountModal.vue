@@ -2364,47 +2364,13 @@
             {{ t('admin.accounts.upstreamBilling.autoProbeHint') }}
           </p>
         </div>
-          <Toggle
-           :model-value="upstreamBillingAutoProbeEnabled"
-           data-testid="upstream-billing-auto-probe"
-           :aria-label="t('admin.accounts.upstreamBilling.autoProbe')"
-           @update:model-value="handleUpstreamBillingAutoProbeChange"
-          />
-	      </div>
-
-		<div
-			v-if="account?.platform === 'openai' && account?.type === 'apikey'"
-			class="space-y-3 border-t border-gray-200 pt-4 dark:border-dark-600"
-		>
-			<div class="flex items-center justify-between gap-4">
-				<div>
-					<label class="input-label mb-0">{{ t('admin.accounts.upstreamBilling.balanceNotify') }}</label>
-					<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-						{{ t('admin.accounts.upstreamBilling.balanceNotifyHint') }}
-					</p>
-				</div>
-				<Toggle
-					v-model="upstreamBalanceNotifyEnabled"
-					data-testid="upstream-balance-notify"
-					:aria-label="t('admin.accounts.upstreamBilling.balanceNotify')"
-				/>
-			</div>
-			<div v-if="upstreamBalanceNotifyEnabled" class="max-w-xs">
-				<label class="input-label">{{ t('admin.accounts.upstreamBilling.balanceThreshold') }}</label>
-				<div class="relative">
-					<input
-						v-model.number="upstreamBalanceNotifyThreshold"
-						type="number"
-						min="0"
-						step="0.01"
-						class="input pr-14 font-mono"
-						data-testid="upstream-balance-notify-threshold"
-					/>
-					<span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-gray-400">USD</span>
-				</div>
-				<p class="input-hint">{{ t('admin.accounts.upstreamBilling.balanceThresholdHint') }}</p>
-			</div>
-		</div>
+        <Toggle
+          :model-value="upstreamBillingAutoProbeEnabled"
+          data-testid="upstream-billing-auto-probe"
+          :aria-label="t('admin.accounts.upstreamBilling.autoProbe')"
+          @update:model-value="handleUpstreamBillingAutoProbeChange"
+        />
+      </div>
 
       <OllamaCloudUsageSettings
         v-if="account?.ollama_cloud_usage?.eligible"
@@ -4097,12 +4063,6 @@ const autoResetCredit7dThreshold = ref(100)
 const upstreamBillingAutoProbeEnabled = ref(false)
 const upstreamBillingRateSyncEnabled = ref(false)
 const isNewAPIUpstream = computed(() => props.account?.extra?.upstream_billing_provider === 'new_api')
-const upstreamBalanceNotifyEnabled = ref(false)
-const upstreamBalanceNotifyThreshold = ref<number | null>(10)
-
-watch(upstreamBalanceNotifyEnabled, enabled => {
-	if (enabled) upstreamBillingAutoProbeEnabled.value = true
-})
 const mixedScheduling = ref(false) // For antigravity accounts: enable mixed scheduling
 // 上游ID：直接上游声明请求标识的响应头名，留空不记录。
 const upstreamRequestIdHeader = ref('')
@@ -4717,10 +4677,6 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 	upstreamBillingAutoProbeEnabled.value = extra?.upstream_billing_probe_enabled === true
   upstreamBillingRateSyncEnabled.value =
     extra?.upstream_billing_provider !== 'new_api' && upstreamBillingAutoProbeEnabled.value && extra?.upstream_billing_rate_sync_enabled === true
-	upstreamBalanceNotifyEnabled.value = extra?.upstream_balance_notify_enabled === true
-	upstreamBalanceNotifyThreshold.value = typeof extra?.upstream_balance_notify_threshold === 'number'
-		? extra.upstream_balance_notify_threshold
-		: 10
 
   // Load OpenAI passthrough toggle (OpenAI OAuth/SetupToken/API Key)
   excelBPSEnabled.value = false
@@ -5792,15 +5748,6 @@ const handleSubmit = async () => {
     appStore.showError(t(autoBPSError))
     return
   }
-	if (
-		props.account.platform === 'openai' &&
-		props.account.type === 'apikey' &&
-		upstreamBalanceNotifyEnabled.value &&
-		(upstreamBalanceNotifyThreshold.value == null || !Number.isFinite(upstreamBalanceNotifyThreshold.value) || upstreamBalanceNotifyThreshold.value < 0)
-	) {
-		appStore.showError(t('admin.accounts.upstreamBilling.invalidBalanceThreshold'))
-		return
-	}
 
   if (form.status !== 'active' && form.status !== 'inactive' && form.status !== 'error') {
     appStore.showError(t('admin.accounts.pleaseSelectStatus'))
@@ -6502,17 +6449,6 @@ const handleSubmit = async () => {
         } else {
           newExtra.openai_responses_mode = openAIResponsesMode.value
         }
-			if (upstreamBalanceNotifyEnabled.value) {
-				newExtra.upstream_billing_probe_enabled = true
-			} else {
-				delete newExtra.upstream_billing_probe_enabled
-			}
-			newExtra.upstream_balance_notify_enabled = upstreamBalanceNotifyEnabled.value
-			if (upstreamBalanceNotifyThreshold.value != null && Number.isFinite(upstreamBalanceNotifyThreshold.value)) {
-				newExtra.upstream_balance_notify_threshold = upstreamBalanceNotifyThreshold.value
-			} else {
-				delete newExtra.upstream_balance_notify_threshold
-			}
         if (openAIImagesUrlToB64JsonEnabled.value) {
           newExtra.images_url_to_b64_json = true
         } else {

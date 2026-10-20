@@ -249,6 +249,21 @@ function expectWSAcceleration(extra: unknown, enabled: boolean) {
 }
 
 describe('CreateAccountModal OpenAI long-context billing', () => {
+  it('does not expose or submit retired upstream balance notifications', async () => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'OpenAI')
+    await selectButtonByText(wrapper, 'API Key')
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('relay account')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('test-api-key')
+    expect(wrapper.find('[data-testid="upstream-balance-notify"]').exists()).toBe(false)
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(createAccountMock).toHaveBeenCalled()
+    const payload = createAccountMock.mock.calls.at(-1)?.[0]
+    expect(payload.extra).not.toHaveProperty('upstream_balance_notify_enabled')
+    expect(payload.extra).not.toHaveProperty('upstream_balance_notify_threshold')
+  })
+
   it('offers WS SSE acceleration for OpenAI OAuth even while WS mode is off', async () => {
     const wrapper = mountModal()
     expect(wrapper.find('[data-testid="create-openai-ws-sse-acceleration"]').exists()).toBe(false)
@@ -775,23 +790,6 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
 
     expect(createAccountMock.mock.calls[0]?.[0]?.upstream_billing_probe_enabled).toBe(true)
   })
-
-	it('creates an OpenAI upstream account with a low-balance threshold', async () => {
-		const wrapper = mountModal()
-		await selectButtonByText(wrapper, 'OpenAI')
-		await selectButtonByText(wrapper, 'API Key')
-		await wrapper.get('form#create-account-form input[type="text"]').setValue('relay account')
-		await wrapper.get('form#create-account-form input[type="password"]').setValue('test-api-key')
-		await wrapper.get('[data-testid="upstream-balance-notify"]').trigger('click')
-		await wrapper.get('[data-testid="upstream-balance-notify-threshold"]').setValue('8.25')
-		await wrapper.get('form#create-account-form').trigger('submit.prevent')
-		await flushPromises()
-
-		const payload = createAccountMock.mock.calls[0]?.[0]
-		expect(payload.extra.upstream_balance_notify_enabled).toBe(true)
-		expect(payload.extra.upstream_balance_notify_threshold).toBe(8.25)
-		expect(payload.upstream_billing_probe_enabled).toBe(true)
-	})
 
   it('waits for the initial upstream billing probe before refreshing the account list', async () => {
     let resolveProbe: (() => void) | undefined

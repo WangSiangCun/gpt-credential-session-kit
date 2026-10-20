@@ -113,6 +113,24 @@ func TestUpdateAccountRoutesRateIntentThroughAtomicBillingUpdater(t *testing.T) 
 	require.Zero(t, *updated.RateMultiplier)
 }
 
+func TestCreateAccountMatchesUpstreamDefaultsWithLegacyNotifySettings(t *testing.T) {
+	for _, kind := range []string{AccountTypeOAuth, AccountTypeAPIKey} {
+		t.Run(kind, func(t *testing.T) {
+			disabled := false
+			account, err := buildAccountForCreate(&CreateAccountInput{
+				Platform: PlatformOpenAI, Type: kind, Schedulable: &disabled,
+			}, map[string]any{
+				"upstream_balance_notify_enabled":   true,
+				"upstream_balance_notify_threshold": -1.0,
+			})
+			require.NoError(t, err)
+			require.True(t, account.Schedulable, "upstream always creates schedulable accounts")
+			require.NotContains(t, account.Extra, UpstreamBillingProbeEnabledExtraKey,
+				"legacy notification flags must not enable probing or reject OAuth imports")
+		})
+	}
+}
+
 func TestCreateAccountDropsManagedUpstreamBillingProbeState(t *testing.T) {
 	repo := &upstreamBillingProbeAccountRepo{}
 	svc := &adminServiceImpl{accountRepo: repo}
@@ -162,43 +180,6 @@ func TestCreateAccountAcceptsDedicatedUpstreamBillingProbeSetting(t *testing.T) 
 	require.ErrorIs(t, err, ErrUpstreamBillingProbeAccountInvalid)
 }
 
-func TestCreateAccountBalanceNotifyForcesScheduledProbe(t *testing.T) {
-	repo := &upstreamBillingProbeAccountRepo{}
-	created, err := (&adminServiceImpl{accountRepo: repo}).CreateAccount(context.Background(), &CreateAccountInput{
-		Name:                 "upstream",
-		Platform:             PlatformOpenAI,
-		Type:                 AccountTypeAPIKey,
-		Credentials:          map[string]any{"api_key": "sk-test"},
-		SkipDefaultGroupBind: true,
-		Extra: map[string]any{
-			UpstreamBalanceNotifyEnabledExtraKey:   true,
-			UpstreamBalanceNotifyThresholdExtraKey: 10.0,
-		},
-	})
-
-	require.NoError(t, err)
-	require.Equal(t, true, created.Extra[UpstreamBillingProbeEnabledExtraKey])
-	require.Equal(t, 10.0, created.Extra[UpstreamBalanceNotifyThresholdExtraKey])
-}
-
-func TestCreateAccountRejectsInvalidBalanceNotifyConfig(t *testing.T) {
-	for _, extra := range []map[string]any{
-		{UpstreamBalanceNotifyEnabledExtraKey: true},
-		{UpstreamBalanceNotifyEnabledExtraKey: true, UpstreamBalanceNotifyThresholdExtraKey: -1.0},
-		{UpstreamBalanceNotifyEnabledExtraKey: "yes", UpstreamBalanceNotifyThresholdExtraKey: 1.0},
-	} {
-		_, err := (&adminServiceImpl{accountRepo: &upstreamBillingProbeAccountRepo{}}).CreateAccount(context.Background(), &CreateAccountInput{
-			Name:                 "upstream",
-			Platform:             PlatformOpenAI,
-			Type:                 AccountTypeAPIKey,
-			Credentials:          map[string]any{"api_key": "sk-test"},
-			SkipDefaultGroupBind: true,
-			Extra:                extra,
-		})
-		require.Error(t, err)
-	}
-}
-
 func TestUpdateAccountPreservesManagedUpstreamBillingProbeStateForUnrelatedEdit(t *testing.T) {
 	accountID := int64(110)
 	repo := &upstreamBillingProbeAccountRepo{accounts: map[int64]*Account{
@@ -225,28 +206,6 @@ func TestUpdateAccountPreservesManagedUpstreamBillingProbeStateForUnrelatedEdit(
 	require.Equal(t, true, updated.Extra[UpstreamBillingRateSyncEnabledExtraKey])
 	require.Contains(t, updated.Extra, UpstreamBillingProbeExtraKey)
 	require.Equal(t, "value", updated.Extra["custom"])
-}
-
-func TestUpdateAccountPreservesBalanceNotifyConfigAndForcesProbe(t *testing.T) {
-	accountID := int64(115)
-	repo := &upstreamBillingProbeAccountRepo{accounts: map[int64]*Account{
-		accountID: {
-			ID: accountID, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive,
-			Extra: map[string]any{
-				UpstreamBalanceNotifyEnabledExtraKey:   true,
-				UpstreamBalanceNotifyThresholdExtraKey: 12.0,
-			},
-		},
-	}}
-
-	updated, err := (&adminServiceImpl{accountRepo: repo}).UpdateAccount(context.Background(), accountID, &UpdateAccountInput{
-		Extra: map[string]any{"custom": "value", UpstreamBillingProbeEnabledExtraKey: false},
-	})
-
-	require.NoError(t, err)
-	require.Equal(t, true, updated.Extra[UpstreamBillingProbeEnabledExtraKey])
-	require.Equal(t, true, updated.Extra[UpstreamBalanceNotifyEnabledExtraKey])
-	require.Equal(t, 12.0, updated.Extra[UpstreamBalanceNotifyThresholdExtraKey])
 }
 
 func TestUpdateAccountPreservesGrokBillingSnapshotForUnrelatedEdit(t *testing.T) {

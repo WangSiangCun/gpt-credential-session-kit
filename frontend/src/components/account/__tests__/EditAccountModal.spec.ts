@@ -2024,23 +2024,6 @@ describe('EditAccountModal', () => {
     expect(payload?.rate_multiplier).toBe(1)
   })
 
-	it('persists low upstream balance alerts and enables scheduled probing', async () => {
-		const account = buildAccount()
-		updateAccountMock.mockReset().mockResolvedValue(account)
-		checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
-		const wrapper = mountModal(account)
-
-		await wrapper.get('[data-testid="upstream-balance-notify"]').trigger('click')
-		await wrapper.get('[data-testid="upstream-balance-notify-threshold"]').setValue('7.5')
-		await wrapper.get('form#edit-account-form').trigger('submit.prevent')
-
-		expect(updateAccountMock).toHaveBeenCalledTimes(1)
-		const extra = updateAccountMock.mock.calls[0]?.[1]?.extra
-		expect(extra?.upstream_balance_notify_enabled).toBe(true)
-		expect(extra?.upstream_balance_notify_threshold).toBe(7.5)
-		expect(extra?.upstream_billing_probe_enabled).toBe(true)
-	})
-
   it('clears OpenAI APIKey Responses override when set back to auto', async () => {
     const account = buildAccount()
     account.extra = {

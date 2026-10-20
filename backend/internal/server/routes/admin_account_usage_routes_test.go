@@ -53,6 +53,12 @@ func TestRegisteredRoutesPreservePelicanWithoutCustomIntelligenceTests(t *testin
 	registered := make(map[string]struct{})
 	for _, route := range router.Routes() {
 		registered[route.Method+" "+route.Path] = struct{}{}
+		assert.NotContains(t, route.Path, "/account-market", "retired account earnings APIs must not be registered")
+	}
+	for _, path := range []string{"/api/v1/account-market/upload", "/api/v1/account-market/withdrawals", "/api/v1/admin/account-market/config"} {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, path, nil))
+		assert.Equal(t, http.StatusNotFound, recorder.Code)
 	}
 	for _, route := range []string{
 		"GET /api/v1/intelligence-tests",

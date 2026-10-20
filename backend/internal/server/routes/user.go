@@ -151,26 +151,6 @@ func RegisterUserRoutes(
 			lotteries.POST("/:token/draw", h.Lottery.Draw)
 		}
 
-		accountMarket := authenticated.Group("/account-market")
-		{
-			accountMarket.GET("/config", h.AccountMarket.GetPublicConfig)
-			accountMarket.GET("/proxies", h.AccountMarket.ListProxies)
-			accountMarket.POST("/oauth/generate-auth-url", h.AccountMarket.GenerateOAuthURL)
-			accountMarket.POST("/oauth/exchange-code", h.AccountMarket.ExchangeOAuthCode)
-			accountMarket.POST("/upload", panelRateLimiter.Heavy(), h.AccountMarket.Upload)
-			accountMarket.GET("/accounts", h.AccountMarket.ListAccounts)
-			accountMarket.POST("/accounts/:id/quota/refresh", panelRateLimiter.Heavy(), h.AccountMarket.RefreshOpenAIQuota)
-			accountMarket.POST("/accounts/:id/reset-quota", panelRateLimiter.Heavy(), h.AccountMarket.ResetOpenAIQuota)
-			accountMarket.PUT("/accounts/:id", h.AccountMarket.UpdateAccount)
-			accountMarket.PUT("/accounts/:id/schedulable", h.AccountMarket.SetSchedulable)
-			accountMarket.GET("/accounts/:id/export", h.AccountMarket.Export)
-			accountMarket.DELETE("/accounts/:id", h.AccountMarket.Remove)
-			accountMarket.GET("/summary", h.AccountMarket.Summary)
-			accountMarket.GET("/withdrawals", h.AccountMarket.ListWithdrawals)
-			accountMarket.POST("/withdrawals", h.AccountMarket.RequestWithdrawal)
-			accountMarket.POST("/withdrawals/:id/cancel", h.AccountMarket.CancelWithdrawal)
-		}
-
 		// 用户订阅
 		subscriptions := authenticated.Group("/subscriptions")
 		{

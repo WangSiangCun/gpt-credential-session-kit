@@ -3207,20 +3207,6 @@ func (r *accountRepository) updateUpstreamBillingProbeSnapshotInTx(
 	if err != nil {
 		return err
 	}
-	var expectedBalanceNotifyEnabled any
-	var expectedBalanceNotifyThreshold any
-	if account.Extra != nil {
-		expectedBalanceNotifyEnabled = account.Extra[service.UpstreamBalanceNotifyEnabledExtraKey]
-		expectedBalanceNotifyThreshold = account.Extra[service.UpstreamBalanceNotifyThresholdExtraKey]
-	}
-	expectedBalanceNotifyEnabledJSON, err := json.Marshal(expectedBalanceNotifyEnabled)
-	if err != nil {
-		return err
-	}
-	expectedBalanceNotifyThresholdJSON, err := json.Marshal(expectedBalanceNotifyThreshold)
-	if err != nil {
-		return err
-	}
 	client := clientFromContext(ctx, r.client)
 	proxyMatches, err := lockAndMatchProbeProxyIdentity(ctx, client, account)
 	if err != nil {
@@ -3242,10 +3228,10 @@ func (r *accountRepository) updateUpstreamBillingProbeSnapshotInTx(
 				ELSE $1::jsonb
 			END,
 			rate_multiplier = CASE
-				WHEN $12::numeric IS NOT NULL
+				WHEN $10::numeric IS NOT NULL
 					AND extra @> '{"upstream_billing_probe_enabled": true}'::jsonb
 					AND extra @> '{"upstream_billing_rate_sync_enabled": true}'::jsonb
-				THEN $12::numeric
+				THEN $10::numeric
 				ELSE rate_multiplier
 			END,
 			updated_at = NOW()
@@ -3258,10 +3244,8 @@ func (r *accountRepository) updateUpstreamBillingProbeSnapshotInTx(
 			AND COALESCE(extra -> 'upstream_billing_probe_enabled', 'null'::jsonb) = $8::jsonb
 			AND COALESCE(extra -> 'upstream_billing_rate_sync_enabled', 'null'::jsonb) = $9::jsonb
  AND NOT (COALESCE(extra,'{}'::jsonb) @> '{"upstream_billing_provider":"new_api"}'::jsonb)
-			AND COALESCE(extra -> 'upstream_balance_notify_enabled', 'null'::jsonb) = $10::jsonb
-			AND COALESCE(extra -> 'upstream_balance_notify_threshold', 'null'::jsonb) = $11::jsonb
 			AND deleted_at IS NULL
-	`, string(payload), account.ID, account.Platform, account.Type, string(credentials), proxyID, string(expectedSnapshotJSON), string(expectedEnabledJSON), string(expectedRateSyncEnabledJSON), string(expectedBalanceNotifyEnabledJSON), string(expectedBalanceNotifyThresholdJSON), rateMultiplier)
+	`, string(payload), account.ID, account.Platform, account.Type, string(credentials), proxyID, string(expectedSnapshotJSON), string(expectedEnabledJSON), string(expectedRateSyncEnabledJSON), rateMultiplier)
 	if err != nil {
 		return err
 	}

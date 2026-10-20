@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"github.com/Wei-Shaw/sub2api/internal/accountmarket"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
 	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
@@ -205,7 +204,6 @@ func ProvideAdminSettingHandler(settingService *service.SettingService, emailSer
 
 // ProvideHandlers creates the Handlers struct
 func ProvideHandlers(
-	accountMarketHandler *accountmarket.Handler,
 	authHandler *AuthHandler,
 	userHandler *UserHandler,
 	apiKeyHandler *APIKeyHandler,
@@ -237,7 +235,6 @@ func ProvideHandlers(
 	_ *service.OpenAIQuotaAutoResetService,
 ) *Handlers {
 	return &Handlers{
-		AccountMarket:    accountMarketHandler,
 		Auth:             authHandler,
 		ProviderPricing:  providerPricingHandler,
 		User:             userHandler,

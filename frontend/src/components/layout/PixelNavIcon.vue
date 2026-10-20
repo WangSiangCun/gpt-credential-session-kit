@@ -36,7 +36,6 @@ const iconPaths = computed(() => {
   if (/available-channels/.test(path)) return ['M2 3h4v4H2z', 'M10 3h4v4h-4z', 'M6 5h4', 'M6 11h4', 'M8 5v6', 'M6 10h4v4H6z']
   if (/channels/.test(path)) return ['M2 4h3v3H2z', 'M11 2h3v3h-3z', 'M11 10h3v3h-3z', 'M5 5h3v6', 'M8 4l3-1', 'M8 10l3 1']
   if (/accounts/.test(path)) return ['M2 2h12v12H2z', 'M4 5h8', 'M4 8h8', 'M4 11h3', 'M10 11h2']
-  if (/account-market/.test(path)) return ['M2 3h12v10H2z', 'M4 6h5', 'M4 9h3', 'M11 6v5', 'M9 9l2 2 3-4']
   if (/subscription/.test(path)) return ['M3 2h10v12H3z', 'M5 1v3', 'M11 1v3', 'M3 5h10', 'M5 8h2', 'M9 8h2', 'M5 11h2']
   if (/purchase|payment\/?$/.test(path)) return ['M2 5h12v8H2z', 'M2 7h12', 'M5 10h4']
   if (/orders/.test(path)) return ['M3 2h10v12H3z', 'M5 5h6', 'M5 8h6', 'M5 11h3']

@@ -287,7 +287,6 @@ func TestGetAccountQuotaNotifyEmailsFallsBackToSMTPFrom(t *testing.T) {
 	s := NewBalanceNotifyService(NewEmailService(repo, nil), repo, nil)
 
 	require.Equal(t, []string{"alerts@example.com"}, s.getAccountQuotaNotifyEmails(context.Background()))
-	require.True(t, s.CanNotifyUpstreamBalanceLow())
 }
 
 func TestGetAccountQuotaNotifyEmailsPrefersVerifiedRecipients(t *testing.T) {

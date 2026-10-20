@@ -1616,40 +1616,6 @@
           />
         </div>
 
-		<div
-			v-if="form.platform === 'openai'"
-			class="space-y-3 border-t border-gray-200 pt-4 dark:border-dark-600"
-		>
-			<div class="flex items-center justify-between gap-4">
-				<div>
-					<label class="input-label mb-0">{{ t('admin.accounts.upstreamBilling.balanceNotify') }}</label>
-					<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-						{{ t('admin.accounts.upstreamBilling.balanceNotifyHint') }}
-					</p>
-				</div>
-				<Toggle
-					v-model="upstreamBalanceNotifyEnabled"
-					data-testid="upstream-balance-notify"
-					:aria-label="t('admin.accounts.upstreamBilling.balanceNotify')"
-				/>
-			</div>
-			<div v-if="upstreamBalanceNotifyEnabled" class="max-w-xs">
-				<label class="input-label">{{ t('admin.accounts.upstreamBilling.balanceThreshold') }}</label>
-				<div class="relative">
-					<input
-						v-model.number="upstreamBalanceNotifyThreshold"
-						type="number"
-						min="0"
-						step="0.01"
-						class="input pr-14 font-mono"
-						data-testid="upstream-balance-notify-threshold"
-					/>
-					<span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-gray-400">USD</span>
-				</div>
-				<p class="input-hint">{{ t('admin.accounts.upstreamBilling.balanceThresholdHint') }}</p>
-			</div>
-		</div>
-
         <!-- Gemini API Key tier selection -->
         <div v-if="form.platform === 'gemini' && isOfficialGeminiBaseUrl(apiKeyBaseUrl)">
           <label class="input-label">{{ t('admin.accounts.gemini.tier.label') }}</label>
@@ -4473,12 +4439,6 @@ const addMethod = ref<AddMethod>('oauth') // For oauth-based: 'oauth' or 'setup-
 const apiKeyBaseUrl = ref('https://api.anthropic.com')
 const apiKeyValue = ref('')
 const upstreamBillingAutoProbeEnabled = ref(true)
-const upstreamBalanceNotifyEnabled = ref(false)
-const upstreamBalanceNotifyThreshold = ref<number | null>(10)
-
-watch(upstreamBalanceNotifyEnabled, enabled => {
-	if (enabled) upstreamBillingAutoProbeEnabled.value = true
-})
 
 // ── 国产供应商（Kimi / Zhipu / DeepSeek）账号类型、API 协议与端点 ──
 // 多协议供应商（国产厂商与走通用表单的供应商）的接入模式；OpenCode 用 openCodeAccountMode。
@@ -5732,8 +5692,6 @@ const resetForm = () => {
   apiKeyValue.value = ''
   upstreamRequestIdHeader.value = ''
   upstreamBillingAutoProbeEnabled.value = true
-	upstreamBalanceNotifyEnabled.value = false
-	upstreamBalanceNotifyThreshold.value = 10
   editQuotaLimit.value = null
   editQuotaDailyLimit.value = null
   editQuotaWeeklyLimit.value = null
@@ -5926,12 +5884,6 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
   } else {
     delete extra.openai_responses_mode
   }
-	if (accountCategory.value === 'apikey') {
-		extra.upstream_balance_notify_enabled = upstreamBalanceNotifyEnabled.value
-		if (upstreamBalanceNotifyThreshold.value != null && Number.isFinite(upstreamBalanceNotifyThreshold.value)) {
-			extra.upstream_balance_notify_threshold = upstreamBalanceNotifyThreshold.value
-		}
-	}
   if (accountCategory.value === 'apikey' && openAIImagesUrlToB64JsonEnabled.value) {
     extra.images_url_to_b64_json = true
   } else {
@@ -6244,14 +6196,6 @@ const handleSubmit = async () => {
     appStore.showError(t('admin.accounts.pleaseEnterApiKey'))
     return
   }
-	if (
-		form.platform === 'openai' &&
-		upstreamBalanceNotifyEnabled.value &&
-		(upstreamBalanceNotifyThreshold.value == null || !Number.isFinite(upstreamBalanceNotifyThreshold.value) || upstreamBalanceNotifyThreshold.value < 0)
-	) {
-		appStore.showError(t('admin.accounts.upstreamBilling.invalidBalanceThreshold'))
-		return
-	}
 
   // Determine default base URL based on platform
   const defaultBaseUrl =

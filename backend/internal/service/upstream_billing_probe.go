@@ -34,8 +34,6 @@ const (
 	UpstreamBillingProbeExtraKey           = "upstream_billing_probe"
 	UpstreamBillingProbeEnabledExtraKey    = "upstream_billing_probe_enabled"
 	UpstreamBillingRateSyncEnabledExtraKey = "upstream_billing_rate_sync_enabled"
-	UpstreamBalanceNotifyEnabledExtraKey   = "upstream_balance_notify_enabled"
-	UpstreamBalanceNotifyThresholdExtraKey = "upstream_balance_notify_threshold"
 
 	upstreamBillingProbeDefaultIntervalMinutes = 30
 	upstreamBillingProbeMinIntervalMinutes     = 5
@@ -99,14 +97,6 @@ const (
 	UpstreamBillingProbeStatusFailed      = "failed"
 )
 
-const (
-	upstreamBalanceAlertStateBelow       = "below"
-	upstreamBalanceAlertStateNormal      = "normal"
-	upstreamBalanceAlertStateDisabled    = "disabled"
-	upstreamBalanceAlertStateUnavailable = "unavailable"
-	upstreamBalanceAlertDeliveryVersion  = 1
-)
-
 // UpstreamBillingProbeSettings controls the periodic probe runner.
 type UpstreamBillingProbeSettings struct {
 	Enabled         bool `json:"enabled"`
@@ -133,12 +123,7 @@ type UpstreamBillingProbeSnapshot struct {
 	SyncedRateMultiplier *float64 `json:"synced_rate_multiplier,omitempty"`
 	// Balance is the upstream balance queried by the same probe. The top-level
 	// status, failure count and schedule describe the rate request only.
-	Balance                     *UpstreamBalanceSnapshot `json:"balance,omitempty"`
-	BalanceAlertState           string                   `json:"balance_alert_state,omitempty"`
-	BalanceAlertThreshold       *float64                 `json:"balance_alert_threshold,omitempty"`
-	BalanceAlertCurrency        string                   `json:"balance_alert_currency,omitempty"`
-	BalanceAlertSentAt          *time.Time               `json:"balance_alert_sent_at,omitempty"`
-	BalanceAlertDeliveryVersion int                      `json:"balance_alert_delivery_version,omitempty"`
+	Balance *UpstreamBalanceSnapshot `json:"balance,omitempty"`
 }
 
 // UpstreamBillingProbeResult is returned by manual probe endpoints.
@@ -196,13 +181,6 @@ type upstreamBillingProbeResponse struct {
 	BalanceRemaining        *float64 `json:"balance_remaining"`
 	BalanceCurrency         *string  `json:"balance_currency"`
 	ObservedAt              string   `json:"observed_at"`
-}
-
-type upstreamBalanceAlert struct {
-	balance    float64
-	threshold  float64
-	currency   string
-	observedAt time.Time
 }
 
 // GetUpstreamBillingProbeSettings returns defaults when the setting is absent.
@@ -275,7 +253,6 @@ type UpstreamBillingProbeService struct {
 	accountRepo        AccountRepository
 	accountTestService *AccountTestService
 	settingService     *SettingService
-	balanceNotify      upstreamBalanceNotifier
 
 	parentCtx    context.Context
 	parentCancel context.CancelFunc
@@ -298,11 +275,6 @@ type upstreamBillingProbeSnapshotWriter interface {
 
 type upstreamBillingProbeDueAccountLister interface {
 	ListDueUpstreamBillingProbeAccounts(context.Context, time.Time, int) ([]Account, error)
-}
-
-type upstreamBalanceNotifier interface {
-	CanNotifyUpstreamBalanceLow() bool
-	NotifyUpstreamBalanceLow(*Account, float64, float64, string, time.Time)
 }
 
 func NewUpstreamBillingProbeService(
@@ -331,19 +303,11 @@ func (s *UpstreamBillingProbeService) SetLeaderLock(lockCache LeaderLockCache, d
 	s.db = db
 }
 
-func (s *UpstreamBillingProbeService) SetBalanceNotifyService(balanceNotify upstreamBalanceNotifier) {
-	if s == nil {
-		return
-	}
-	s.balanceNotify = balanceNotify
-}
-
 // ProvideUpstreamBillingProbeService starts the process-wide periodic runner.
 func ProvideUpstreamBillingProbeService(
 	accountRepo AccountRepository,
 	accountTestService *AccountTestService,
 	settingService *SettingService,
-	balanceNotify *BalanceNotifyService,
 	lockCache LeaderLockCache,
 	db *sql.DB,
 	cfg *config.Config,
@@ -351,7 +315,6 @@ func ProvideUpstreamBillingProbeService(
 	encryptor SecretEncryptor,
 ) *UpstreamBillingProbeService {
 	svc := NewUpstreamBillingProbeService(accountRepo, accountTestService, settingService)
-	svc.SetBalanceNotifyService(balanceNotify)
 	svc.SetLeaderLock(lockCache, db)
 	svc.SetNewAPIAuthorization(newAPIRepo, encryptor, cfg != nil && cfg.Totp.EncryptionKeyConfigured)
 	startBackgroundService(cfg, svc)
@@ -740,14 +703,6 @@ func (s *UpstreamBillingProbeService) probeLoadedAccount(ctx context.Context, ac
 			snapshot.NextProbeAt = now.Add(nextProbeDelay(intervalMinutes, retryAfter(rateResult.header, now)))
 		}
 	}
-	alert := applyUpstreamBalanceAlertState(account, snapshot, now)
-	if alert != nil && (s.balanceNotify == nil || !s.balanceNotify.CanNotifyUpstreamBalanceLow()) {
-		snapshot.BalanceAlertSentAt = nil
-		snapshot.BalanceAlertDeliveryVersion = 0
-		alert = nil
-	} else if alert != nil {
-		snapshot.BalanceAlertDeliveryVersion = upstreamBalanceAlertDeliveryVersion
-	}
 	if err := s.updateSnapshot(ctx, account, snapshot, syncRate); err != nil {
 		return nil, err
 	}
@@ -760,9 +715,6 @@ func (s *UpstreamBillingProbeService) probeLoadedAccount(ctx context.Context, ac
 			"old_rate_multiplier", previousRate,
 			"new_rate_multiplier", *syncRate,
 		)
-	}
-	if alert != nil && s.balanceNotify != nil {
-		s.balanceNotify.NotifyUpstreamBalanceLow(account, alert.balance, alert.threshold, alert.currency, alert.observedAt)
 	}
 	return snapshot, nil
 }
@@ -948,11 +900,6 @@ func upstreamBillingProbeFailureSnapshot(
 			snapshot.FreshUntil = probeTimePtr(previous.ReceivedAt.Add(2 * time.Duration(intervalMinutes) * time.Minute))
 		}
 		snapshot.Balance = previous.Balance
-		snapshot.BalanceAlertState = previous.BalanceAlertState
-		snapshot.BalanceAlertThreshold = previous.BalanceAlertThreshold
-		snapshot.BalanceAlertCurrency = previous.BalanceAlertCurrency
-		snapshot.BalanceAlertSentAt = previous.BalanceAlertSentAt
-		snapshot.BalanceAlertDeliveryVersion = previous.BalanceAlertDeliveryVersion
 	}
 	return snapshot
 }
@@ -1145,95 +1092,10 @@ func parseUpstreamUsageBalanceResponse(body []byte) (float64, string, bool) {
 	return balance, currency, true
 }
 
-func upstreamBalanceNotifyConfig(account *Account) (bool, float64, bool) {
-	if account == nil || account.Extra == nil {
-		return false, 0, true
-	}
-	enabled, _ := account.Extra[UpstreamBalanceNotifyEnabledExtraKey].(bool)
-	if !enabled {
-		return false, 0, true
-	}
-	threshold, ok := resolveAccountExtraNumber(account.Extra, UpstreamBalanceNotifyThresholdExtraKey)
-	if !ok || threshold < 0 || math.IsNaN(threshold) || math.IsInf(threshold, 0) {
-		return true, 0, false
-	}
-	return true, threshold, true
-}
-
-func validateUpstreamBalanceNotifyExtra(extra map[string]any) error {
-	if extra == nil {
-		return nil
-	}
-	if raw, exists := extra[UpstreamBalanceNotifyEnabledExtraKey]; exists {
-		if _, ok := raw.(bool); !ok {
-			return infraerrors.BadRequest("INVALID_UPSTREAM_BALANCE_NOTIFY_ENABLED", "upstream_balance_notify_enabled must be a boolean")
-		}
-	}
-	if _, exists := extra[UpstreamBalanceNotifyThresholdExtraKey]; exists {
-		threshold, ok := resolveAccountExtraNumber(extra, UpstreamBalanceNotifyThresholdExtraKey)
-		if !ok || threshold < 0 || math.IsNaN(threshold) || math.IsInf(threshold, 0) {
-			return infraerrors.BadRequest("INVALID_UPSTREAM_BALANCE_NOTIFY_THRESHOLD", "upstream_balance_notify_threshold must be a finite number greater than or equal to 0")
-		}
-	}
-	if enabled, _ := extra[UpstreamBalanceNotifyEnabledExtraKey].(bool); enabled {
-		if _, exists := extra[UpstreamBalanceNotifyThresholdExtraKey]; !exists {
-			return infraerrors.BadRequest("UPSTREAM_BALANCE_NOTIFY_THRESHOLD_REQUIRED", "upstream_balance_notify_threshold is required when notifications are enabled")
-		}
-	}
-	return nil
-}
-
-func upstreamBalanceNotifyEnabled(extra map[string]any) bool {
-	enabled, _ := extra[UpstreamBalanceNotifyEnabledExtraKey].(bool)
-	return enabled
-}
-
-func applyUpstreamBalanceAlertState(account *Account, snapshot *UpstreamBillingProbeSnapshot, now time.Time) *upstreamBalanceAlert {
-	if snapshot == nil {
-		return nil
-	}
-	previous := decodeUpstreamBillingProbeSnapshot(account.Extra)
-	enabled, threshold, configOK := upstreamBalanceNotifyConfig(account)
-	if !enabled {
-		snapshot.BalanceAlertState = upstreamBalanceAlertStateDisabled
-		return nil
-	}
-	snapshot.BalanceAlertThreshold = &threshold
-	if !configOK {
-		snapshot.BalanceAlertState = upstreamBalanceAlertStateUnavailable
-		return nil
-	}
-	balance, balanceOK := resolveAccountExtraNumber(snapshot.Data, "balance_remaining")
-	currency, currencyOK := snapshot.Data["balance_currency"].(string)
-	if !balanceOK || !currencyOK || currency == "" || math.IsNaN(balance) || math.IsInf(balance, 0) {
-		snapshot.BalanceAlertState = upstreamBalanceAlertStateUnavailable
-		return nil
-	}
-	snapshot.BalanceAlertCurrency = currency
-	if balance > threshold {
-		snapshot.BalanceAlertState = upstreamBalanceAlertStateNormal
-		return nil
-	}
-	snapshot.BalanceAlertState = upstreamBalanceAlertStateBelow
-	alreadyAlerted := previous != nil &&
-		previous.BalanceAlertState == upstreamBalanceAlertStateBelow &&
-		previous.BalanceAlertSentAt != nil &&
-		previous.BalanceAlertDeliveryVersion == upstreamBalanceAlertDeliveryVersion &&
-		previous.BalanceAlertThreshold != nil &&
-		equalBillingMultiplier(*previous.BalanceAlertThreshold, threshold) &&
-		previous.BalanceAlertCurrency == currency
-	if alreadyAlerted {
-		snapshot.BalanceAlertSentAt = previous.BalanceAlertSentAt
-		snapshot.BalanceAlertDeliveryVersion = previous.BalanceAlertDeliveryVersion
-		return nil
-	}
-	sentAt := now.UTC()
-	snapshot.BalanceAlertSentAt = &sentAt
-	snapshot.BalanceAlertDeliveryVersion = upstreamBalanceAlertDeliveryVersion
-	return &upstreamBalanceAlert{balance: balance, threshold: threshold, currency: currency, observedAt: sentAt}
-}
-
 func upstreamBillingRateAt(data map[string]any, now time.Time) (float64, bool) {
+	if data["billing_mode"] == "multi_group" {
+		return 0, false
+	}
 	if scope, _ := data["billing_scope"].(string); scope != "token" {
 		return 0, false
 	}

@@ -299,9 +299,7 @@ const formatBalance = (value: number | null, currency: string) => {
 }
 const formattedBalance = computed(() => formatBalance(balanceValue.value, balanceCurrency.value))
 const formattedLastBalance = computed(() => formatBalance(balanceValue.value, balanceCurrency.value))
-const balanceClass = computed(() => snapshot.value?.balance_alert_state === 'below'
-	? 'text-red-600 dark:text-red-400'
-	: 'text-emerald-700 dark:text-emerald-400')
+const balanceClass = 'text-emerald-700 dark:text-emerald-400'
 const formatElapsedSince = (timestamp: number) => {
   if (!Number.isFinite(timestamp)) return '-'
   const elapsedMinutes = Math.max(0, Math.floor((props.now - timestamp) / 60_000))
